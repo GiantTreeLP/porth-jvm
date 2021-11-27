@@ -174,7 +174,7 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
             instructions.append(("i2l",))
             # Stack: string length
 
-            string_get_bytes(context.cf, instructions)
+            push_constant(instructions, string_constant)
             instructions.append(("invokestatic", context.put_string_method))
 
             # print_memory(context, instructions)
@@ -182,7 +182,7 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
             assert isinstance(op.operand, str), "This could be a bug in the parsing step"
             string_constant = context.cf.constants.create_string(op.operand + "\0")
 
-            string_get_bytes(context.cf, instructions)
+            push_constant(instructions, string_constant)
             instructions.append(("invokestatic", context.put_string_method))
 
             # print_memory(context.cf, instructions)
@@ -261,7 +261,8 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
             elif op.operand == Intrinsic.MUL:
                 instructions.append(("lmul",))
             elif op.operand == Intrinsic.MAX:
-                raise NotImplementedError()
+                instructions.append(
+                    ("invokestatic", context.cf.constants.create_method_ref("java/lang/Math", "max", "(JJ)J")))
             elif op.operand == Intrinsic.DIVMOD:
                 instructions.append(("lstore", local_variable_index + 2))
                 instructions.append(("lstore", local_variable_index + 4))
