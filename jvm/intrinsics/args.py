@@ -1,10 +1,10 @@
 from collections import deque
 
-from jvm.commons import push_int, push_long, ARGC_OFFSET, ARGV_OFFSET, MAX_STACK, LONG_SIZE, count_locals
 from jawa.assemble import Label, assemble
 from jawa.attributes.bootstrap import BootstrapMethod
 from jawa.constants import MethodReference
 
+from jvm.commons import push_int, push_long, ARGC_OFFSET, ARGV_OFFSET, MAX_STACK, LONG_SIZE, count_locals, print_memory
 from jvm.context import GenerateContext
 
 
@@ -250,9 +250,10 @@ def add_prepare_envp(context: GenerateContext) -> MethodReference:
     # Stack: envp offset, "key=value"
     instructions.append(("invokestatic", context.put_string_method))
     # Stack: envp offset, index (as long)
-    instructions.append(("iload", offset))
+    instructions.append(("getstatic", context.environ_ref))
+    instructions.append(("l2i",))
     # Stack: envp offset, index (as long), envp offset
-    instructions.append(("iload", local_variable_index + 1))
+    instructions.append(("iload", counter))
     # Stack: envp offset, index (as long), envp offset, counter
     push_int(context.cf, instructions, LONG_SIZE)
     # Stack: envp offset, index (as long), envp offset, counter, 8
@@ -264,7 +265,7 @@ def add_prepare_envp(context: GenerateContext) -> MethodReference:
     # Stack: envp offset, index (as long), envp offset + counter * 8 (as long)
     instructions.append(("invokestatic", context.store_64_method))
     # Stack: envp offset
-    instructions.append(("iinc", local_variable_index + 1, 1))
+    instructions.append(("iinc", counter, 1))
     # Stack: envp offset
     instructions.append(("goto", Label("env_loop")))
     # endregion

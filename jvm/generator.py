@@ -64,19 +64,6 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
     context.environ_ref = cf.constants.create_field_ref(cf.this.name.value, environ.name.value,
                                                         environ.descriptor.value)
 
-    context.extend_mem_method = add_increase_mem_method(context)
-    context.put_string_method = add_put_string(context)
-    context.store_64_method = add_store_64_method(context)
-    context.prepare_argv_method = add_prepare_argv(context)
-    context.prepare_envp_method = add_prepare_envp(context)
-    context.syscall3_method = add_syscall3(context)
-    context.clinit_method = add_init(context)
-
-    # Variables:
-    # 0: argument array
-    # 1: Return pointers
-    # 2: Return pointers index
-
     print_long_method = create_method_prototype(cf, "print_long", "(J)V")
     context.print_long_method = cf.constants.create_method_ref(context.cf.this.name.value,
                                                                print_long_method.name.value,
@@ -107,6 +94,14 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
                                                            load_8_method.descriptor.value)
     create_method_direct(context, load_8_method, load_8_method_instructions(context))
 
+    context.extend_mem_method = add_increase_mem_method(context)
+    context.put_string_method = add_put_string(context)
+    context.store_64_method = add_store_64_method(context)
+    context.prepare_argv_method = add_prepare_argv(context)
+    context.prepare_envp_method = add_prepare_envp(context)
+    context.syscall3_method = add_syscall3(context)
+    context.clinit_method = add_init(context)
+
     for name, procedure in parse_context.procs.items():
         method = create_method_prototype(cf, name, make_signature(procedure.contract))
         context.procedures[name] = Procedure(name, procedure.local_memory_capacity,
@@ -132,6 +127,9 @@ def create_method_prototype(cf: ClassFile, name: str, descriptor: str):
 
 
 def create_method(context: GenerateContext, method: Method, procedure: Optional[Proc], ops: list[Op]):
+    # Variables:
+    # 0: argument array
+
     instructions = deque()
     current_proc: Optional[OpAddr] = None
 
