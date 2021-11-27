@@ -192,77 +192,76 @@ def add_prepare_envp(context: GenerateContext) -> MethodReference:
     # Stack: env map, envp offset
     instructions.append(("pop",))
     # Stack: env map
-    # instructions.append(("swap",))
-    # Stack: envp offset, env map
 
     instructions.append(("invokeinterface",
                          context.cf.constants.create_interface_method_ref("java/util/Map", "entrySet",
                                                                           "()Ljava/util/Set;"), 1, 0))
-    # Stack: envp offset, env map entry set
+    # Stack: env map entry set
     instructions.append(("invokeinterface",
                          context.cf.constants.create_interface_method_ref("java/util/Set", "iterator",
                                                                           "()Ljava/util/Iterator;"), 1, 0))
-    # Stack: envp offset, env map entry set iterator
+    # Stack: env map entry set iterator
     instructions.append(("astore", iterator))
-    # Stack: envp offset
+    # Stack: (empty)
     push_int(context.cf, instructions, 0)
-    # Stack: envp offset, 0
+    # Stack: 0
     instructions.append(("istore", counter))
-    # Stack: envp offset
+    # Stack: (empty))
 
     # region insertion loop with iterator
     instructions.append(Label("env_loop"))
-    # Stack: envp offset
+    # Stack: (empty)
     instructions.append(("aload", iterator))
-    # Stack: envp offset, env map entry set iterator
+    # Stack: env map entry set iterator
     instructions.append(("invokeinterface",
                          context.cf.constants.create_interface_method_ref("java/util/Iterator", "hasNext", "()Z"), 1,
                          0))
-    # Stack: envp offset, has next
+    # Stack: has next
     instructions.append(("ifeq", Label("env_loop_exit")))
     # Stack: envp offset
     instructions.append(("aload", iterator))
-    # Stack: envp offset, env map entry set iterator
+    # Stack: env map entry set iterator
     instructions.append(("invokeinterface",
                          context.cf.constants.create_interface_method_ref("java/util/Iterator", "next",
                                                                           "()Ljava/lang/Object;"), 1, 0))
-    # Stack: envp offset, entry
+    # Stack: entry
     instructions.append(("checkcast", context.cf.constants.create_class("java/util/Map$Entry")))
-    # Stack: envp offset, entry
+    # Stack: entry
     instructions.append(("dup",))
-    # Stack: envp offset, entry, entry
+    # Stack: entry, entry
     instructions.append(("invokeinterface",
                          context.cf.constants.create_interface_method_ref("java/util/Map$Entry", "getKey",
                                                                           "()Ljava/lang/Object;"), 1, 0))
-    # Stack: envp offset, entry, key
+    # Stack: entry, key
     instructions.append(("checkcast", context.cf.constants.create_class("java/lang/String")))
-    # Stack: envp offset, entry, key
+    # Stack: entry, key
     instructions.append(("swap",))
-    # Stack: envp offset, key, entry
+    # Stack: key, entry
     instructions.append(("invokeinterface",
                          context.cf.constants.create_interface_method_ref("java/util/Map$Entry", "getValue",
                                                                           "()Ljava/lang/Object;"), 1, 0))
-    # Stack: envp offset, key, value
+    # Stack: key, value
     instructions.append(("checkcast", context.cf.constants.create_class("java/lang/String")))
-    # Stack: envp offset, key, value
+    # Stack: key, value
     instructions.append(
         ("invokedynamic", make_concat_with_constants, 0, 0))
-    # Stack: envp offset, "key=value"
+    # Stack: "key=value"
     instructions.append(("invokestatic", context.put_string_method))
-    # Stack: envp offset, index (as long)
+    # Stack: index (as long)
     instructions.append(("getstatic", context.environ_ref))
+    # Stack: index (as long), envp offset (as long)
     instructions.append(("l2i",))
-    # Stack: envp offset, index (as long), envp offset
+    # Stack: index (as long), envp offset
     instructions.append(("iload", counter))
-    # Stack: envp offset, index (as long), envp offset, counter
+    # Stack: index (as long), envp offset, counter
     push_int(context.cf, instructions, LONG_SIZE)
-    # Stack: envp offset, index (as long), envp offset, counter, 8
+    # Stack: index (as long), envp offset, counter, 8
     instructions.append(("imul",))
-    # Stack: envp offset, index (as long), envp offset, counter * 8
+    # Stack: index (as long), envp offset, counter * 8
     instructions.append(("iadd",))
-    # Stack: envp offset, index (as long), envp offset + counter * 8
+    # Stack: index (as long), envp offset + counter * 8
     instructions.append(("i2l",))
-    # Stack: envp offset, index (as long), envp offset + counter * 8 (as long)
+    # Stack: index (as long), envp offset + counter * 8 (as long)
     instructions.append(("invokestatic", context.store_64_method))
     # Stack: envp offset
     instructions.append(("iinc", counter, 1))
