@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional, Union, Iterable
 
 from jawa.assemble import assemble, Label
+from jawa.attributes.line_number_table import LineNumberTableAttribute, line_number_entry
 from jawa.attributes.source_file import SourceFileAttribute
 from jawa.cf import ClassFile
 from jawa.methods import Method
@@ -110,6 +111,11 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
                                                                             method.descriptor.value),
                                              procedure.contract)
         create_method(context, method, procedure, program.ops[procedure.addr:])
+        line_numbers: LineNumberTableAttribute = method.code.attributes.create(LineNumberTableAttribute)
+
+        line_numbers.line_no = [
+            line_number_entry(0, program.ops[procedure.addr].token.loc[1]),
+        ]
 
     create_method(context, main_method, None, program.ops)
 
