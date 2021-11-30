@@ -3,7 +3,7 @@ from typing import MutableSequence
 
 from jawa.assemble import assemble
 
-from jvm.commons import push_int, system_arraycopy, count_locals, MAX_STACK, string_get_bytes
+from jvm.commons import push_int, system_arraycopy, count_locals, string_get_bytes, calculate_max_stack
 from jvm.context import GenerateContext
 
 
@@ -64,7 +64,7 @@ def add_increase_mem_method(context: GenerateContext):
 
     method.code.assemble(assemble(instructions))
     method.code.max_locals = count_locals(method.descriptor.value, instructions)
-    method.code.max_stack = MAX_STACK
+    method.code.max_stack = calculate_max_stack(context, assemble(instructions))
 
     return context.cf.constants.create_method_ref(context.cf.this.name.value, method.name.value,
                                                   method.descriptor.value)
@@ -131,7 +131,7 @@ def add_put_string(context: GenerateContext):
 
     method.code.assemble(assemble(instructions))
     method.code.max_locals = count_locals(method.descriptor.value, instructions)
-    method.code.max_stack = MAX_STACK
+    method.code.max_stack = calculate_max_stack(context, assemble(instructions))
 
     return context.cf.constants.create_method_ref(context.cf.this.name.value, method.name.value,
                                                   method.descriptor.value)

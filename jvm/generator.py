@@ -10,7 +10,7 @@ from jawa.methods import Method
 
 from extensions.DeduplicatingClassFile import DeduplicatingClassFile
 from jvm.commons import count_locals, push_long, push_int, string_get_bytes, \
-    ARGC_OFFSET, ARGV_OFFSET, MAX_STACK, print_long_method_instructions, push_constant
+    ARGC_OFFSET, ARGV_OFFSET, print_long_method_instructions, push_constant, calculate_max_stack
 from jvm.context import GenerateContext
 from jvm.intrinsics.args import add_prepare_argv, add_prepare_envp
 from jvm.intrinsics.init import add_init
@@ -21,9 +21,6 @@ from jvm.intrinsics.procedures import Procedure
 from jvm.intrinsics.store import store_32, store_16, store_8, add_store_64_method
 from jvm.intrinsics.syscalls import add_syscall3
 from porth.porth import Program, OpType, MemAddr, OpAddr, Intrinsic, Op, Token, TokenType, ParseContext, Proc
-
-PROC_LOAD_16 = "load_16"
-PROC_LOAD_8 = "load_8"
 
 
 def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_file_path: str):
@@ -145,7 +142,7 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
         instructions.append(("aload_0",))
         instructions.append(("invokestatic", context.prepare_argv_method))
         instructions.append(("invokestatic", context.prepare_envp_method))
-    # print_memory(context, instructions)
+        # print_memory(context, instructions)
 
     if procedure and procedure.local_memory_capacity != 0:
         push_int(context.cf, instructions, procedure.local_memory_capacity)
@@ -472,14 +469,14 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
 
     method.code.assemble(assemble(instructions))
     method.code.max_locals = count_locals(method.descriptor.value, instructions)
-    method.code.max_stack = MAX_STACK
+    method.code.max_stack = calculate_max_stack(context, assemble(instructions))
 
 
 def create_method_direct(context: GenerateContext, method: Method,
                          instructions: Iterable[Union[Label, tuple]]):
     method.code.assemble(assemble(instructions))
     method.code.max_locals = count_locals(method.descriptor.value, instructions)
-    method.code.max_stack = MAX_STACK
+    method.code.max_stack = calculate_max_stack(context, assemble(instructions))
 
 
 def make_signature(contract):

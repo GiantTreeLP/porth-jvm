@@ -2,7 +2,7 @@ from collections import deque
 
 from jawa.assemble import assemble
 
-from jvm.commons import push_int, count_locals, MAX_STACK
+from jvm.commons import push_int, count_locals, calculate_max_stack
 from jvm.context import GenerateContext
 
 
@@ -20,7 +20,7 @@ def add_init(context: GenerateContext):
     instructions.append(("return",))
 
     init_method.code.assemble(assemble(instructions))
-    init_method.code.max_stack = MAX_STACK
+    init_method.code.max_stack = calculate_max_stack(context, assemble(instructions))
     init_method.code.max_locals = count_locals(init_method.descriptor.value, instructions)
 
     return context.cf.constants.create_method_ref(context.cf.this.name.value, init_method.name.value,

@@ -1,10 +1,13 @@
+import inspect
 from collections import deque
 from typing import Iterable, MutableSequence
 
 from jawa.cf import ClassFile
-from jawa.constants import Constant
+from jawa.constants import Constant, MethodReference, FieldReference
+from jawa.util.bytecode import Instruction
 
 from jvm.context import GenerateContext
+from jvm.instructions import INSTRUCTIONS, OperandType
 
 
 def _print_boilerplate(cf: ClassFile, signature: str, fd: str):
@@ -251,5 +254,52 @@ def push_constant(instructions: MutableSequence, constant: Constant):
 
 ARGC_OFFSET = 0
 ARGV_OFFSET = 8
-MAX_STACK = 0xe000  # Seems to be the highest it'll go without a stack overflow
 LONG_SIZE = 8
+
+
+def calculate_max_stack(context: GenerateContext, instructions: Iterable[Instruction]) -> int:
+    def sum_list_of_types(types: Iterable[OperandType]) -> int:
+        return sum(map(lambda t: t.size, types))
+
+    running_maximum = 0
+    current_size = 0
+
+    for instruction in instructions:
+        mapping = INSTRUCTIONS[instruction[1]]
+        outputs = mapping.outputs
+
+        if callable(outputs):
+            signature = inspect.signature(outputs)
+            if len(signature.parameters) == 1:
+                first = next(iter(signature.parameters.values()))
+                if first.annotation == MethodReference:
+                    current_size += sum_list_of_types(outputs(context.cf.constants.get(instruction.operands[0].value)))
+                elif first.annotation == FieldReference:
+                    current_size += sum_list_of_types(outputs(context.cf.constants.get(instruction.operands[0].value)))
+                else:
+                    raise ValueError(f"Unknown annotation {first.annotation}")
+            else:
+                raise ValueError(f"Cannot handle {signature}")
+        else:
+            current_size += sum_list_of_types(outputs)
+
+        inputs = mapping.inputs
+
+        if callable(inputs):
+            signature = inspect.signature(inputs)
+            if len(signature.parameters) == 1:
+                first = next(iter(signature.parameters.values()))
+                if first.annotation == MethodReference:
+                    current_size -= sum_list_of_types(inputs(context.cf.constants.get(instruction.operands[0].value)))
+                elif first.annotation == FieldReference:
+                    current_size -= sum_list_of_types(inputs(context.cf.constants.get(instruction.operands[0].value)))
+                else:
+                    raise ValueError(f"Unknown annotation {first.annotation}")
+            else:
+                raise ValueError(f"Cannot handle {signature}")
+        else:
+            current_size -= sum_list_of_types(inputs)
+
+        running_maximum = max(running_maximum, current_size)
+
+    return running_maximum

@@ -1,10 +1,8 @@
 from collections import deque
 
 from jawa.assemble import assemble, Label
-from jawa.attributes.exceptions import ExceptionsAttribute
-from jawa.cf import ClassFile
 
-from jvm.commons import count_locals, push_long, MAX_STACK
+from jvm.commons import count_locals, push_long, calculate_max_stack
 from jvm.context import GenerateContext
 
 SYSCALL_READ = 0x0
@@ -85,7 +83,7 @@ def add_syscall3(context: GenerateContext):
 
     method.code.assemble(assemble(instructions))
     method.code.max_locals = count_locals(method.descriptor.value, instructions)
-    method.code.max_stack = MAX_STACK
+    method.code.max_stack = calculate_max_stack(context, assemble(instructions))
 
     return context.cf.constants.create_method_ref(context.cf.this.name.value, method.name.value,
                                                   method.descriptor.value)

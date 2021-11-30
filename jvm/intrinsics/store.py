@@ -4,7 +4,7 @@ from typing import MutableSequence
 from jawa.assemble import assemble
 from jawa.constants import MethodReference
 
-from jvm.commons import push_long, push_int, count_locals, MAX_STACK
+from jvm.commons import push_long, push_int, count_locals, calculate_max_stack
 from jvm.context import GenerateContext
 
 
@@ -121,7 +121,7 @@ def add_store_64_method(context: GenerateContext) -> MethodReference:
 
     method.code.assemble(assemble(instructions))
     method.code.max_locals = count_locals(method.descriptor.value, instructions)
-    method.code.max_stack = MAX_STACK
+    method.code.max_stack = calculate_max_stack(context, assemble(instructions))
 
     return context.cf.constants.create_method_ref(context.cf.this.name.value, method.name.value,
                                                   method.descriptor.value)

@@ -4,7 +4,8 @@ from jawa.assemble import Label, assemble
 from jawa.attributes.bootstrap import BootstrapMethod
 from jawa.constants import MethodReference
 
-from jvm.commons import push_int, push_long, ARGC_OFFSET, ARGV_OFFSET, MAX_STACK, LONG_SIZE, count_locals, print_memory
+from jvm.commons import push_int, push_long, ARGC_OFFSET, ARGV_OFFSET, LONG_SIZE, count_locals, \
+    calculate_max_stack
 from jvm.context import GenerateContext
 
 
@@ -107,7 +108,7 @@ def add_prepare_argv(context: GenerateContext) -> MethodReference:
     instructions.append(("return",))
 
     prepare_argv_method.code.assemble(assemble(instructions))
-    prepare_argv_method.code.max_stack = MAX_STACK
+    prepare_argv_method.code.max_stack = calculate_max_stack(context, assemble(instructions))
     prepare_argv_method.code.max_locals = count_locals(prepare_argv_method.descriptor.value, instructions)
 
     return context.cf.constants.create_method_ref(context.cf.this.name.value, prepare_argv_method.name.value,
@@ -277,8 +278,8 @@ def add_prepare_envp(context: GenerateContext) -> MethodReference:
     instructions.append(("return",))
 
     method.code.assemble(assemble(instructions))
-    method.code.max_stack = MAX_STACK
-    method.code.max_locals = 5
+    method.code.max_stack = calculate_max_stack(context, assemble(instructions))
+    method.code.max_locals = count_locals(method.descriptor.value, instructions)
 
     return context.cf.constants.create_method_ref(context.cf.this.name.value, method.name.value,
                                                   method.descriptor.value)
