@@ -80,6 +80,8 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
 
     create_method(context, main_method, None, program.ops)
 
+    remove_unused_procedures(context)
+
     with open(out_file_path, "wb") as f:
         cf.save(f)
 
@@ -265,6 +267,10 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
             assert isinstance(op.operand, OpAddr), f"This could be a bug in the parsing step: {op.operand}"
 
             proc = context.procedures[op.token.value]
+            if current_proc:
+                proc.call_sites.append(method.name.value)
+            else:
+                proc.call_sites.append(None)
             instructions.append(("invokestatic", proc.method_ref))
 
             if len(proc.contract.outs) > 1:
@@ -515,3 +521,18 @@ def make_signature(contract):
         return "(" + "J" * len(contract.ins) + ")" + "J"
     else:
         return "(" + "J" * len(contract.ins) + ")" + "[J"
+
+
+def remove_unused_procedures(context: GenerateContext):
+    while any(len(proc.call_sites) == 0 for proc in context.procedures.values()):
+        for proc in list(context.procedures.values()):
+            if not proc.call_sites:
+                method = context.cf.methods.find_one(name=proc.name)
+                context.cf.methods.remove(method)
+                for called_proc in context.procedures.values():
+                    called_proc.call_sites = [
+                        call_site for call_site in called_proc.call_sites
+                        if call_site != proc.name
+                    ]
+                del context.procedures[proc.name]
+

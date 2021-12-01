@@ -1,8 +1,9 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Optional
 
 from jawa.constants import MethodReference
 
-from porth.porth import Contract
+from porth.porth import Contract, OpAddr
 
 
 @dataclass
@@ -11,3 +12,4 @@ class Procedure:
     local_memory: int
     method_ref: MethodReference
     contract: Contract
+    call_sites: list[Optional[str]] = field(default_factory=list)
