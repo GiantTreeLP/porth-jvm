@@ -1,3 +1,4 @@
+import random
 from collections import deque
 from pathlib import Path
 from typing import Optional, Union, Iterable
@@ -65,7 +66,12 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
     add_utility_methods(context)
 
     for name, procedure in parse_context.procs.items():
-        method = create_method_prototype(cf, name, make_signature(procedure.contract))
+        method_name = name
+        signature = make_signature(procedure.contract)
+        while cf.methods.find_one(name=method_name, f=lambda m: m.descriptor.value == signature):
+            method_name = f"{name}{random.randint(-2 ** 32, 2 ** 32)}"
+
+        method = create_method_prototype(cf, method_name, signature)
         context.procedures[name] = Procedure(name, procedure.local_memory_capacity,
                                              cf.constants.create_method_ref(context.cf.this.name.value,
                                                                             method.name.value,
@@ -167,7 +173,7 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
 
     local_variable_index = 0
 
-    if method.name.value == "main":
+    if not procedure:
         instructions.append(("aload_0",))
         instructions.append(("invokestatic", context.prepare_argv_method))
         instructions.append(("invokestatic", context.prepare_envp_method))
