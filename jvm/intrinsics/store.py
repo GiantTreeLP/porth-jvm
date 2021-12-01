@@ -1,10 +1,7 @@
 from collections import deque
 from typing import MutableSequence
 
-from jawa.assemble import assemble
-from jawa.constants import MethodReference
-
-from jvm.commons import push_long, push_int, count_locals, calculate_max_stack
+from jvm.commons import push_long, push_int
 from jvm.context import GenerateContext
 
 
@@ -103,13 +100,7 @@ def store_64(context: GenerateContext, instructions: MutableSequence, local_vari
     # Stack: (empty)
 
 
-def add_store_64_method(context: GenerateContext) -> MethodReference:
-    method = context.cf.methods.create("store_64", "(JJ)V", code=True)
-    method.access_flags.acc_public = False
-    method.access_flags.acc_private = True
-    method.access_flags.acc_static = True
-    method.access_flags.acc_synthetic = True
-
+def store_64_method_instructions(context: GenerateContext):
     instructions = deque()
 
     instructions.append(("lload_0",))
@@ -119,12 +110,7 @@ def add_store_64_method(context: GenerateContext) -> MethodReference:
 
     instructions.append(("return",))
 
-    method.code.assemble(assemble(instructions))
-    method.code.max_locals = count_locals(method.descriptor.value, instructions)
-    method.code.max_stack = calculate_max_stack(context, assemble(instructions))
-
-    return context.cf.constants.create_method_ref(context.cf.this.name.value, method.name.value,
-                                                  method.descriptor.value)
+    return instructions
 
 
 def store_32(context: GenerateContext, instructions: MutableSequence):

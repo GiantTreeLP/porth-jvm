@@ -1,17 +1,16 @@
 from dataclasses import dataclass
-from typing import Union
 
 from jawa.cf import ClassFile
 from jawa.constants import MethodReference, FieldReference
 
 from jvm.intrinsics.procedures import Procedure
-from porth.porth import Program, OpAddr
+from porth.porth import Program
 
 
 @dataclass(init=False)
 class GenerateContext:
     program: Program
-    procedures: dict[Union[OpAddr, str], Procedure]
+    procedures: dict[str, Procedure]
 
     cf: ClassFile
 

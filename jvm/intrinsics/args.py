@@ -9,13 +9,7 @@ from jvm.commons import push_int, push_long, ARGC_OFFSET, ARGV_OFFSET, LONG_SIZE
 from jvm.context import GenerateContext
 
 
-def add_prepare_argv(context: GenerateContext) -> MethodReference:
-    prepare_argv_method = context.cf.methods.create("prepare_argv", "([Ljava/lang/String;)V", code=True)
-    prepare_argv_method.access_flags.acc_public = False
-    prepare_argv_method.access_flags.acc_private = True
-    prepare_argv_method.access_flags.acc_static = True
-    prepare_argv_method.access_flags.acc_synthetic = True
-
+def prepare_argv_method_instructions(context: GenerateContext):
     instructions = deque()
     local_variable_index = 1
     # Variables:
@@ -107,21 +101,10 @@ def add_prepare_argv(context: GenerateContext) -> MethodReference:
     # Stack: (empty)
     instructions.append(("return",))
 
-    prepare_argv_method.code.assemble(assemble(instructions))
-    prepare_argv_method.code.max_stack = calculate_max_stack(context, assemble(instructions))
-    prepare_argv_method.code.max_locals = count_locals(prepare_argv_method.descriptor.value, instructions)
-
-    return context.cf.constants.create_method_ref(context.cf.this.name.value, prepare_argv_method.name.value,
-                                                  prepare_argv_method.descriptor.value)
+    return instructions
 
 
-def add_prepare_envp(context: GenerateContext) -> MethodReference:
-    method = context.cf.methods.create("prepare_envp", "()V", code=True)
-    method.access_flags.acc_public = False
-    method.access_flags.acc_private = True
-    method.access_flags.acc_static = True
-    method.access_flags.acc_synthetic = True
-
+def prepare_envp_method_instructions(context: GenerateContext):
     bootstrap_method = 0
     bootstrap_methods: list = context.cf.bootstrap_methods
 
@@ -277,9 +260,4 @@ def add_prepare_envp(context: GenerateContext) -> MethodReference:
 
     instructions.append(("return",))
 
-    method.code.assemble(assemble(instructions))
-    method.code.max_stack = calculate_max_stack(context, assemble(instructions))
-    method.code.max_locals = count_locals(method.descriptor.value, instructions)
-
-    return context.cf.constants.create_method_ref(context.cf.this.name.value, method.name.value,
-                                                  method.descriptor.value)
+    return instructions

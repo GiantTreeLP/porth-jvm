@@ -12,14 +12,14 @@ from extensions.DeduplicatingClassFile import DeduplicatingClassFile
 from jvm.commons import count_locals, push_long, push_int, string_get_bytes, \
     ARGC_OFFSET, ARGV_OFFSET, print_long_method_instructions, push_constant, calculate_max_stack
 from jvm.context import GenerateContext
-from jvm.intrinsics.args import add_prepare_argv, add_prepare_envp
-from jvm.intrinsics.init import add_init
+from jvm.intrinsics.args import prepare_argv_method_instructions, prepare_envp_method_instructions
+from jvm.intrinsics.init import clinit_method_instructions
 from jvm.intrinsics.load import load_64, load_64_method_instructions, \
     load_32_method_instructions, load_16_method_instructions, load_8_method_instructions
-from jvm.intrinsics.memory import add_increase_mem_method, add_put_string
+from jvm.intrinsics.memory import extend_mem_method_instructions, put_string_method_instructions
 from jvm.intrinsics.procedures import Procedure
-from jvm.intrinsics.store import store_32, store_16, store_8, add_store_64_method
-from jvm.intrinsics.syscalls import add_syscall3
+from jvm.intrinsics.store import store_32, store_16, store_8, store_64_method_instructions
+from jvm.intrinsics.syscalls import syscall3_method_instructions
 from porth.porth import Program, OpType, MemAddr, OpAddr, Intrinsic, Op, Token, TokenType, ParseContext, Proc
 
 
@@ -62,43 +62,7 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
     context.environ_ref = cf.constants.create_field_ref(cf.this.name.value, environ.name.value,
                                                         environ.descriptor.value)
 
-    print_long_method = create_method_prototype(cf, "print_long", "(J)V")
-    context.print_long_method = cf.constants.create_method_ref(context.cf.this.name.value,
-                                                               print_long_method.name.value,
-                                                               print_long_method.descriptor.value)
-    create_method_direct(context, print_long_method, print_long_method_instructions(context.cf))
-
-    load_64_method = create_method_prototype(cf, "load_64", "(J)J")
-    context.load_64_method = cf.constants.create_method_ref(context.cf.this.name.value,
-                                                            load_64_method.name.value,
-                                                            load_64_method.descriptor.value)
-    create_method_direct(context, load_64_method, load_64_method_instructions(context))
-
-    load_32_method = create_method_prototype(cf, "load_32", "(J)J")
-    context.load_32_method = cf.constants.create_method_ref(context.cf.this.name.value,
-                                                            load_32_method.name.value,
-                                                            load_32_method.descriptor.value)
-    create_method_direct(context, load_32_method, load_32_method_instructions(context))
-
-    load_16_method = create_method_prototype(cf, "load_16", "(J)J")
-    context.load_16_method = cf.constants.create_method_ref(context.cf.this.name.value,
-                                                            load_16_method.name.value,
-                                                            load_16_method.descriptor.value)
-    create_method_direct(context, load_16_method, load_16_method_instructions(context))
-
-    load_8_method = create_method_prototype(cf, "load_8", "(J)J")
-    context.load_8_method = cf.constants.create_method_ref(context.cf.this.name.value,
-                                                           load_8_method.name.value,
-                                                           load_8_method.descriptor.value)
-    create_method_direct(context, load_8_method, load_8_method_instructions(context))
-
-    context.extend_mem_method = add_increase_mem_method(context)
-    context.put_string_method = add_put_string(context)
-    context.store_64_method = add_store_64_method(context)
-    context.prepare_argv_method = add_prepare_argv(context)
-    context.prepare_envp_method = add_prepare_envp(context)
-    context.syscall3_method = add_syscall3(context)
-    context.clinit_method = add_init(context)
+    add_utility_methods(context)
 
     for name, procedure in parse_context.procs.items():
         method = create_method_prototype(cf, name, make_signature(procedure.contract))
@@ -118,6 +82,69 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
 
     with open(out_file_path, "wb") as f:
         cf.save(f)
+
+
+def add_utility_methods(context: GenerateContext):
+    print_long_method = create_method_prototype(context.cf, "print_long", "(J)V")
+    context.print_long_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
+                                                                       print_long_method.name.value,
+                                                                       print_long_method.descriptor.value)
+    create_method_direct(context, print_long_method, print_long_method_instructions(context.cf))
+    load_64_method = create_method_prototype(context.cf, "load_64", "(J)J")
+    context.load_64_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
+                                                                    load_64_method.name.value,
+                                                                    load_64_method.descriptor.value)
+    create_method_direct(context, load_64_method, load_64_method_instructions(context))
+    load_32_method = create_method_prototype(context.cf, "load_32", "(J)J")
+    context.load_32_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
+                                                                    load_32_method.name.value,
+                                                                    load_32_method.descriptor.value)
+    create_method_direct(context, load_32_method, load_32_method_instructions(context))
+    load_16_method = create_method_prototype(context.cf, "load_16", "(J)J")
+    context.load_16_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
+                                                                    load_16_method.name.value,
+                                                                    load_16_method.descriptor.value)
+    create_method_direct(context, load_16_method, load_16_method_instructions(context))
+    load_8_method = create_method_prototype(context.cf, "load_8", "(J)J")
+    context.load_8_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
+                                                                   load_8_method.name.value,
+                                                                   load_8_method.descriptor.value)
+    create_method_direct(context, load_8_method, load_8_method_instructions(context))
+    extend_mem_method = create_method_prototype(context.cf, "extend_mem", "(I)V")
+    context.extend_mem_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
+                                                                       extend_mem_method.name.value,
+                                                                       extend_mem_method.descriptor.value)
+    create_method_direct(context, extend_mem_method, extend_mem_method_instructions(context))
+    put_string_method = create_method_prototype(context.cf, "put_string", "(Ljava/lang/String;)J")
+    context.put_string_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
+                                                                       put_string_method.name.value,
+                                                                       put_string_method.descriptor.value)
+    create_method_direct(context, put_string_method, put_string_method_instructions(context))
+    store_64_method = create_method_prototype(context.cf, "store_64", "(JJ)V")
+    context.store_64_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
+                                                                     store_64_method.name.value,
+                                                                     store_64_method.descriptor.value)
+    create_method_direct(context, store_64_method, store_64_method_instructions(context))
+    prepare_argv_method = create_method_prototype(context.cf, "prepare_argv", "([Ljava/lang/String;)V")
+    context.prepare_argv_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
+                                                                         prepare_argv_method.name.value,
+                                                                         prepare_argv_method.descriptor.value)
+    create_method_direct(context, prepare_argv_method, prepare_argv_method_instructions(context))
+    prepare_envp_method = create_method_prototype(context.cf, "prepare_envp", "()V")
+    context.prepare_envp_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
+                                                                         prepare_envp_method.name.value,
+                                                                         prepare_envp_method.descriptor.value)
+    create_method_direct(context, prepare_envp_method, prepare_envp_method_instructions(context))
+    syscall3_method = create_method_prototype(context.cf, "syscall3", "(JJJJ)J")
+    context.syscall3_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
+                                                                     syscall3_method.name.value,
+                                                                     syscall3_method.descriptor.value)
+    create_method_direct(context, syscall3_method, syscall3_method_instructions(context))
+    clinit_method = create_method_prototype(context.cf, "<clinit>", "()V")
+    context.clinit_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
+                                                                   clinit_method.name.value,
+                                                                   clinit_method.descriptor.value)
+    create_method_direct(context, clinit_method, clinit_method_instructions(context))
 
 
 def create_method_prototype(cf: ClassFile, name: str, descriptor: str):
@@ -467,16 +494,18 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
     else:
         instructions.append(("return",))
 
-    method.code.assemble(assemble(instructions))
+    assembly = list(assemble(instructions))
+    method.code.assemble(assembly)
     method.code.max_locals = count_locals(method.descriptor.value, instructions)
-    method.code.max_stack = calculate_max_stack(context, assemble(instructions))
+    method.code.max_stack = calculate_max_stack(context, assembly)
 
 
 def create_method_direct(context: GenerateContext, method: Method,
                          instructions: Iterable[Union[Label, tuple]]):
-    method.code.assemble(assemble(instructions))
+    assembly = list(assemble(instructions))
+    method.code.assemble(assembly)
     method.code.max_locals = count_locals(method.descriptor.value, instructions)
-    method.code.max_stack = calculate_max_stack(context, assemble(instructions))
+    method.code.max_stack = calculate_max_stack(context, assembly)
 
 
 def make_signature(contract):

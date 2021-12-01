@@ -1,9 +1,7 @@
 from collections import deque
 from typing import MutableSequence
 
-from jawa.assemble import assemble
-
-from jvm.commons import push_int, system_arraycopy, count_locals, string_get_bytes, calculate_max_stack
+from jvm.commons import push_int, system_arraycopy, string_get_bytes
 from jvm.context import GenerateContext
 
 
@@ -47,27 +45,13 @@ def increase_mem_capacity(context: GenerateContext, instructions: MutableSequenc
     # Stack: (empty)
 
 
-def add_increase_mem_method(context: GenerateContext):
-    method = context.cf.methods.create("extend_mem", "(I)V", code=True)
-    method.access_flags.acc_public = False
-    method.access_flags.acc_private = True
-    method.access_flags.acc_static = True
-    method.access_flags.acc_synthetic = True
-
+def extend_mem_method_instructions(context: GenerateContext):
     instructions = deque()
-
     instructions.append(("iload_0",))
-
     increase_mem_capacity(context, instructions)
-
     instructions.append(("return",))
 
-    method.code.assemble(assemble(instructions))
-    method.code.max_locals = count_locals(method.descriptor.value, instructions)
-    method.code.max_stack = calculate_max_stack(context, assemble(instructions))
-
-    return context.cf.constants.create_method_ref(context.cf.this.name.value, method.name.value,
-                                                  method.descriptor.value)
+    return instructions
 
 
 def put_string(context: GenerateContext, instructions: MutableSequence):
@@ -116,22 +100,10 @@ def put_string(context: GenerateContext, instructions: MutableSequence):
     # Stack: index (as long)
 
 
-def add_put_string(context: GenerateContext):
-    method = context.cf.methods.create("put_string", "(Ljava/lang/String;)J", code=True)
-    method.access_flags.acc_public = False
-    method.access_flags.acc_private = True
-    method.access_flags.acc_static = True
-    method.access_flags.acc_synthetic = True
-
+def put_string_method_instructions(context: GenerateContext):
     instructions = deque()
 
     put_string(context, instructions)
-
     instructions.append(("lreturn",))
 
-    method.code.assemble(assemble(instructions))
-    method.code.max_locals = count_locals(method.descriptor.value, instructions)
-    method.code.max_stack = calculate_max_stack(context, assemble(instructions))
-
-    return context.cf.constants.create_method_ref(context.cf.this.name.value, method.name.value,
-                                                  method.descriptor.value)
+    return instructions
