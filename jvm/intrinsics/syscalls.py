@@ -22,7 +22,7 @@ def syscall3_method_instructions(context: GenerateContext):
     instructions.append(("lookupswitch", {
         SYSCALL_READ: Label("read"),
         SYSCALL_WRITE: Label("write"),
-    }, Label("exit")))
+    }, Label("exit0")))
 
     # region: write
     instructions.append(Label("write"))
@@ -35,7 +35,7 @@ def syscall3_method_instructions(context: GenerateContext):
     instructions.append(("lookupswitch", {
         STDOUT: Label("write_out"),
         STDERR: Label("write_err"),
-    }, Label("exit")))
+    }, Label("exit0")))
 
     instructions.append(Label("write_out"))
     instructions.append(
@@ -50,11 +50,11 @@ def syscall3_method_instructions(context: GenerateContext):
     instructions.append(Label("write_printstream"))
     instructions.append(("getstatic", context.memory_ref))
     # Stack: string, string, memory
-    instructions.append(("lload", 2))
+    instructions.append(("lload_2",))
     # Stack: string, string, memory, offset
     instructions.append(("l2i",))
     # Stack: string, string, memory, offset
-    instructions.append(("lload", 0))
+    instructions.append(("lload_0",))
     # Stack: string, string, memory, offset, length
     instructions.append(("l2i",))
     # Stack: string, string, memory, offset, length
@@ -65,14 +65,18 @@ def syscall3_method_instructions(context: GenerateContext):
         "([BII)V"
     )))
 
+    instructions.append(("lload_0",))
+
     instructions.append(("goto", Label("exit")))
     # endregion
 
     instructions.append(Label("read"))
 
+    instructions.append(Label("exit0"))
+    instructions.append(("lconst_0",))
+
     instructions.append(Label("exit"))
 
-    push_long(context.cf, instructions, 0)
     instructions.append(("lreturn",))
 
     return instructions

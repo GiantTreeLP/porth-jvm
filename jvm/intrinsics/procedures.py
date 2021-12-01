@@ -3,7 +3,7 @@ from typing import Optional
 
 from jawa.constants import MethodReference
 
-from porth.porth import Contract, OpAddr
+from porth.porth import Contract
 
 
 @dataclass

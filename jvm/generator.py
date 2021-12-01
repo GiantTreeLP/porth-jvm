@@ -318,6 +318,8 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
                 instructions.append(("land",))
             elif op.operand == Intrinsic.NOT:
                 instructions.append(("lneg",))
+                push_long(context.cf, instructions, 1)
+                instructions.append(("lsub",))
             elif op.operand == Intrinsic.PRINT:
                 instructions.append(("invokestatic", context.print_long_method))
             elif op.operand == Intrinsic.EQ:
@@ -413,7 +415,15 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
                 pass
             elif op.operand == Intrinsic.HERE:
                 value = ("%s:%d:%d" % op.token.loc)
-                push_constant(instructions, context.cf.constants.create_string(value))
+                string_constant = context.cf.constants.create_string(value)
+
+                push_constant(instructions, string_constant)
+                string_get_bytes(context.cf, instructions)
+                instructions.append(("arraylength",))
+                instructions.append(("i2l",))
+                # Stack: string length
+
+                push_constant(instructions, string_constant)
                 instructions.append(("invokestatic", context.put_string_method))
             elif op.operand in [Intrinsic.CAST_PTR, Intrinsic.CAST_INT, Intrinsic.CAST_BOOL]:
                 pass
@@ -535,4 +545,3 @@ def remove_unused_procedures(context: GenerateContext):
                         if call_site != proc.name
                     ]
                 del context.procedures[proc.name]
-
