@@ -124,7 +124,7 @@ def main():
             type_check_program(program, {proc.addr: proc for proc in parse_context.procs.values()})
         if not silent:
             print("[INFO] Generating %s" % (basepath + ".class"))
-        generate_jvm_bytecode(parse_context, program, "Main.class")
+        generate_jvm_bytecode(parse_context, program, "Main.class", program_path)
         # cmd_call_echoed(["javap", "-v", "-c", "-constants", basepath + ".class"], silent)
         cmd_call_echoed(["javap", "-v", "-c", "-constants", "Main.class"], silent)
         if run:

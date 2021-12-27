@@ -223,13 +223,22 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
             string_constant = context.cf.constants.create_string(op.operand)
 
             push_constant(instructions, string_constant)
+            # Stack: string
+            instructions.append(("dup",))
+            # Stack: string, string
             string_get_bytes(context.cf, instructions)
+            # Stack: string, bytes
             instructions.append(("arraylength",))
+            # Stack: string, length
             instructions.append(("i2l",))
-            # Stack: string length
+            # Stack: string, length (as long)
+            instructions.append(("dup2_x1",))
+            # Stack: length (as long), string, length (as long)
+            instructions.append(("pop2",))
+            # Stack: length (as long), string
 
-            push_constant(instructions, string_constant)
             instructions.append(("invokestatic", context.put_string_method))
+            # Stack: pointer to string
 
             # print_memory(context, instructions)
         elif op.typ == OpType.PUSH_CSTR:
