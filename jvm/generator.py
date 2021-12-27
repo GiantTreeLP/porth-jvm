@@ -184,6 +184,7 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
     current_proc: Optional[OpAddr] = None
 
     local_variable_index = 0
+    local_memory_var: Optional[int] = None
 
     if not procedure:
         instructions.append(("aload_0",))
@@ -248,6 +249,8 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
             assert local_memory_var is not None, "No local memory outside a procedure"
 
             instructions.append(("iload", local_memory_var))
+            push_int(context.cf, instructions, op.operand)
+            instructions.append(("iadd",))
             instructions.append(("i2l",))
 
         elif op.typ in [OpType.IF, OpType.IFSTAR]:
