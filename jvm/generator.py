@@ -24,7 +24,8 @@ from jvm.intrinsics.syscalls import syscall3_method_instructions
 from porth.porth import Program, OpType, MemAddr, OpAddr, Intrinsic, Op, Token, TokenType, ParseContext, Proc
 
 
-def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_file_path: str):
+def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_file_path: str,
+                          input_path: str):
     context = GenerateContext()
     context.procedures = dict()
 
@@ -46,7 +47,7 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
     main_method.access_flags.acc_static = True
     main_method.access_flags.acc_synthetic = True
 
-    cf.attributes.create(SourceFileAttribute).source_file = cf.constants.create_utf8(program.ops[0].token.loc[0])
+    cf.attributes.create(SourceFileAttribute).source_file = cf.constants.create_utf8(input_path)
 
     add_fields(context)
 
