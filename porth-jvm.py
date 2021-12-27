@@ -6,7 +6,7 @@ from typing import Optional
 
 from jvm.generator import generate_jvm_bytecode
 from porth.porth import usage, Program, ParseContext, parse_program_from_file, type_check_program, \
-    simulate_little_endian_linux, PORTH_EXT, generate_control_flow_graph_as_dot_file, cmd_call_echoed
+    PORTH_EXT, generate_control_flow_graph_as_dot_file, cmd_call_echoed
 
 
 def main():
@@ -44,21 +44,7 @@ def main():
     program_path: Optional[str] = None
     program: Program = Program()
 
-    if subcommand == "sim":
-        if len(argv) < 1:
-            usage(compiler_name)
-            print("[ERROR] no input file is provided for the simulation", file=sys.stderr)
-            exit(1)
-        program_path, *argv = argv
-        include_paths.append(path.dirname(program_path))
-        parse_context = ParseContext()
-        parse_program_from_file(parse_context, program_path, include_paths)
-        program = Program(ops=parse_context.ops, memory_capacity=parse_context.memory_capacity)
-        proc_contracts = {proc.addr: proc.contract for proc in parse_context.procs.values()}
-        if not unsafe:
-            type_check_program(program, proc_contracts)
-        simulate_little_endian_linux(program, [program_path] + argv)
-    elif subcommand == "check":
+    if subcommand == "check":
         if len(argv) < 1:
             usage(compiler_name)
             print("[ERROR] no input file is provided for the checking", file=sys.stderr)
@@ -135,7 +121,7 @@ def main():
             generate_control_flow_graph_as_dot_file(program, dot_path)
             cmd_call_echoed(["dot", "-Tsvg", "-O", dot_path], silent)
         if not unsafe:
-            type_check_program(program, proc_contracts)
+            type_check_program(program, {proc.addr: proc for proc in parse_context.procs.values()})
         if not silent:
             print("[INFO] Generating %s" % (basepath + ".class"))
         generate_jvm_bytecode(parse_context, program, "Main.class")
