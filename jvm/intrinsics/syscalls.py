@@ -63,12 +63,12 @@ def syscall3_method_instructions(context: GenerateContext):
     # Stack: string, string, memory, offset, length
 
     instructions.append(("invokevirtual", context.cf.constants.create_method_ref(
-        "java/io/OutputStream",
+        "java/io/InputStream",
         "read",
-        "([BII)V"
+        "([BII)I"
     )))
 
-    instructions.append(("lload_0",))
+    instructions.append(("i2l",))
 
     instructions.append(("goto", Label("exit")))
     # endregion
@@ -121,8 +121,6 @@ def syscall3_method_instructions(context: GenerateContext):
 
     instructions.append(("goto", Label("exit")))
     # endregion
-
-    instructions.append(Label("read"))
 
     instructions.append(Label("exit0"))
     instructions.append(("lconst_0",))
