@@ -129,7 +129,7 @@ def main():
         cmd_call_echoed(["javap", "-v", "-c", "-constants", "Main.class"], silent)
         if run:
             # -Xverify:none to verification of the stack, method names and stack map frames
-            exit(cmd_call_echoed(["java", "-Xverify:none", "Main", "testarg", "testarg2"] + argv, silent))
+            exit(cmd_call_echoed(["java", "-Xverify:none", "Main"] + argv, silent))
     elif subcommand == "help":
         usage(compiler_name)
         exit(0)
