@@ -1,1 +1,1 @@
-jawa~=2.2.0
+jawa-fixed~=2.3.1
