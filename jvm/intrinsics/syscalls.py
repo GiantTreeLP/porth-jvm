@@ -2,7 +2,7 @@ from collections import deque
 
 from jawa.assemble import Label
 
-from jvm.commons import push_long
+from jvm.commons import push_int
 from jvm.context import GenerateContext
 
 SYSCALL_READ = 0x0
@@ -67,7 +67,22 @@ def syscall3_method_instructions(context: GenerateContext):
         "read",
         "([BII)I"
     )))
+    # Stack: read byte count
 
+    # Match the behavior of the JVM to the behavior of the kernel (i.e. return 0 on EOF)
+
+    instructions.append(("dup",))
+    # Stack: read byte count, read byte count
+    push_int(context.cf, instructions, -1)
+    # Stack: read byte count, read byte count, -1
+    instructions.append(("if_icmpne", Label("read_return_value")))
+    # Stack: read byte count
+    push_int(context.cf, instructions, 0)
+    instructions.append(("swap",))
+    # Stack: 0, read byte count
+    instructions.append(("pop",))
+
+    instructions.append(Label("read_return_value"))
     instructions.append(("i2l",))
 
     instructions.append(("goto", Label("exit")))
