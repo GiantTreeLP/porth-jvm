@@ -22,6 +22,7 @@ def prepare_argv_method_instructions(context: GenerateContext):
     push_int(context.cf, instructions, LONG_SIZE)
     # Stack: 1
     instructions.append(("invokestatic", context.extend_mem_method))
+    instructions.append(("pop2",))
     # Stack: (empty)
     instructions.append(("aload_0",))
     # Stack: args array
@@ -43,6 +44,7 @@ def prepare_argv_method_instructions(context: GenerateContext):
     instructions.append(("imul",))
     # Stack: args array length (argc), args array length (argc) * 8
     instructions.append(("invokestatic", context.extend_mem_method))
+    instructions.append(("pop2",))
     # Stack: args array length (argc)
 
     # Store offset
@@ -76,6 +78,7 @@ def prepare_argv_method_instructions(context: GenerateContext):
     push_int(context.cf, instructions, 1)
     # Stack: args array length (argc), offset, 1
     instructions.append(("invokestatic", context.extend_mem_method))
+    instructions.append(("pop2",))
     # Stack: args array length (argc), offset
     push_int(context.cf, instructions, ARGV_OFFSET + context.program.memory_capacity)
     # Stack: args array length (argc), offset, 1
@@ -173,6 +176,7 @@ def prepare_envp_method_instructions(context: GenerateContext):
     instructions.append(("swap",))
     # Stack: env map, envp offset, env map size * 8
     instructions.append(("invokestatic", context.extend_mem_method))
+    instructions.append(("pop2",))
     # Stack: env map, envp offset
     instructions.append(("pop",))
     # Stack: env map

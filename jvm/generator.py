@@ -130,7 +130,7 @@ def add_utility_methods(context: GenerateContext):
                                                                    load_8_method.name.value,
                                                                    load_8_method.descriptor.value)
     create_method_direct(context, load_8_method, load_8_method_instructions(context))
-    extend_mem_method = create_method_prototype(context.cf, "extend_mem", "(I)V")
+    extend_mem_method = create_method_prototype(context.cf, "extend_mem", "(I)J")
     context.extend_mem_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
                                                                        extend_mem_method.name.value,
                                                                        extend_mem_method.descriptor.value)
@@ -192,8 +192,12 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
         # print_memory(context, instructions)
 
     if procedure and procedure.local_memory_capacity != 0:
+        local_memory_var = local_variable_index
+        local_variable_index += 1
         push_int(context.cf, instructions, procedure.local_memory_capacity)
         instructions.append(("invokestatic", context.extend_mem_method))
+        instructions.append(("l2i",))
+        instructions.append(("istore", local_memory_var))
 
     for ip, op in enumerate(ops, 0 if not procedure else procedure.addr):
         # print(ip, op)
@@ -241,13 +245,9 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
         elif op.typ == OpType.PUSH_LOCAL_MEM:
             assert isinstance(op.operand, MemAddr), "This could be a bug in the parsing step"
             assert procedure, "No local memory outside a procedure"
+            assert local_memory_var is not None, "No local memory outside a procedure"
 
-            instructions.append(("getstatic", context.memory_ref))
-            instructions.append(("arraylength",))
-            push_int(context.cf, instructions, procedure.local_memory_capacity)
-            instructions.append(("isub",))
-            push_int(context.cf, instructions, op.operand)
-            instructions.append(("iadd",))
+            instructions.append(("iload", local_memory_var))
             instructions.append(("i2l",))
 
         elif op.typ in [OpType.IF, OpType.IFSTAR]:
@@ -502,7 +502,10 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
     instructions.append(Label(f"addr_{len(ops)}"))
 
     if procedure and procedure.local_memory_capacity != 0:
-        push_int(context.cf, instructions, -procedure.local_memory_capacity)
+        instructions.append(("getstatic", context.memory_ref))
+        instructions.append(("arraylength",))
+        instructions.append(("iload", local_memory_var))
+        instructions.append(("isub",))
         instructions.append(("invokestatic", context.extend_mem_method))
 
     if procedure:
