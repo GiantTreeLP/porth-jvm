@@ -29,3 +29,4 @@ class GenerateContext:
 
     memory_ref: FieldReference
     environ_ref: FieldReference
+    fd_ref: FieldReference

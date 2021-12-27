@@ -48,20 +48,7 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
 
     cf.attributes.create(SourceFileAttribute).source_file = cf.constants.create_utf8(program.ops[0].token.loc[0])
 
-    memory = cf.fields.create("memory", "[B")
-    memory.access_flags.acc_public = False
-    memory.access_flags.acc_private = True
-    memory.access_flags.acc_static = True
-    memory.access_flags.acc_synthetic = True
-    context.memory_ref = cf.constants.create_field_ref(cf.this.name.value, memory.name.value, memory.descriptor.value)
-
-    environ = cf.fields.create("environ", "J")
-    environ.access_flags.acc_public = False
-    environ.access_flags.acc_private = True
-    environ.access_flags.acc_static = True
-    environ.access_flags.acc_synthetic = True
-    context.environ_ref = cf.constants.create_field_ref(cf.this.name.value, environ.name.value,
-                                                        environ.descriptor.value)
+    add_fields(context)
 
     add_utility_methods(context)
 
@@ -90,6 +77,31 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
 
     with open(out_file_path, "wb") as f:
         cf.save(f)
+
+
+def add_fields(context: GenerateContext):
+    memory = context.cf.fields.create("memory", "[B")
+    memory.access_flags.acc_public = False
+    memory.access_flags.acc_private = True
+    memory.access_flags.acc_static = True
+    memory.access_flags.acc_synthetic = True
+    context.memory_ref = context.cf.constants.create_field_ref(context.cf.this.name.value, memory.name.value,
+                                                               memory.descriptor.value)
+    environ = context.cf.fields.create("environ", "J")
+    environ.access_flags.acc_public = False
+    environ.access_flags.acc_private = True
+    environ.access_flags.acc_static = True
+    environ.access_flags.acc_synthetic = True
+    context.environ_ref = context.cf.constants.create_field_ref(context.cf.this.name.value, environ.name.value,
+                                                                environ.descriptor.value)
+
+    file_descriptors = context.cf.fields.create("fds", "[Ljava/io/FileDescriptor;")
+    file_descriptors.access_flags.acc_public = False
+    file_descriptors.access_flags.acc_private = True
+    file_descriptors.access_flags.acc_static = True
+    file_descriptors.access_flags.acc_synthetic = True
+    context.fd_ref = context.cf.constants.create_field_ref(context.cf.this.name.value, file_descriptors.name.value,
+                                                           file_descriptors.descriptor.value)
 
 
 def add_utility_methods(context: GenerateContext):
