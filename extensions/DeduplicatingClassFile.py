@@ -8,7 +8,7 @@ from extensions.DeduplicatingConstantPool import DeduplicatingConstantPool
 class DeduplicatingClassFile(ClassFile):
     def __init__(self, source: IO = None):
         super().__init__(source)
-        self._version = ClassVersion(51, 3)
+        self._version = ClassVersion(51, 0)
         self._constants = DeduplicatingConstantPool()
 
     @classmethod
@@ -21,5 +21,3 @@ class DeduplicatingClassFile(ClassFile):
         cf.super_ = cf.constants.create_class(super_)
 
         return cf
-
-
