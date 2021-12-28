@@ -109,24 +109,33 @@ def syscall3_method_instructions(context: GenerateContext):
     instructions.append(("invokespecial", context.cf.constants.create_method_ref("java/io/FileOutputStream", "<init>",
                                                                                  "(Ljava/io/FileDescriptor;)V")))
     # Stack: FileOutputStream
+    instructions.append(("dup",))
+    # Stack: FileOutputStream, FileOutputStream
 
     instructions.append(Label("write_printstream"))
     instructions.append(("getstatic", context.memory_ref))
-    # Stack: string, string, memory
+    # Stack: FileOutputStream, FileOutputStream, string, string, memory
     instructions.append(("lload_2",))
-    # Stack: string, string, memory, offset
+    # Stack: FileOutputStream, FileOutputStream, string, string, memory, offset
     instructions.append(("l2i",))
-    # Stack: string, string, memory, offset
+    # Stack: FileOutputStream, FileOutputStream, string, string, memory, offset
     instructions.append(("lload_0",))
-    # Stack: string, string, memory, offset, length
+    # Stack: FileOutputStream, FileOutputStream, string, string, memory, offset, length
     instructions.append(("l2i",))
-    # Stack: string, string, memory, offset, length
+    # Stack: FileOutputStream, FileOutputStream, string, string, memory, offset, length
 
     instructions.append(("invokevirtual", context.cf.constants.create_method_ref(
         "java/io/OutputStream",
         "write",
         "([BII)V"
     )))
+    # Stack: FileOutputStream
+    instructions.append(("invokevirtual", context.cf.constants.create_method_ref(
+        "java/io/OutputStream",
+        "flush",
+        "()V"
+    )))
+    # Stack: (empty)
 
     instructions.append(("lload_0",))
 
