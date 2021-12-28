@@ -1,28 +1,25 @@
 from collections import deque
 
-from jawa.assemble import Label, assemble
+from jawa.assemble import Label
 from jawa.attributes.bootstrap import BootstrapMethod
-from jawa.constants import MethodReference
 
-from jvm.commons import push_int, push_long, ARGC_OFFSET, ARGV_OFFSET, LONG_SIZE, count_locals, \
-    calculate_max_stack
+from jvm.commons import push_int, LONG_SIZE, push_constant
 from jvm.context import GenerateContext
 
 
 def prepare_argv_method_instructions(context: GenerateContext):
     instructions = deque()
     local_variable_index = 1
+
     # Variables:
     # local_variable_index + 1: counter
-    # local_variable_index + 2: offset
     counter = local_variable_index + 1
-    offset = local_variable_index + 2
 
     # Store argc
     push_int(context.cf, instructions, LONG_SIZE)
     # Stack: 1
     instructions.append(("invokestatic", context.extend_mem_method))
-    instructions.append(("pop2",))
+    instructions.append(("putstatic", context.argc_ref))
     # Stack: (empty)
     instructions.append(("aload_0",))
     # Stack: args array
@@ -30,29 +27,53 @@ def prepare_argv_method_instructions(context: GenerateContext):
     # Stack: args array length (argc)
     instructions.append(("dup",))
     # Stack: args array length (argc), args array length (argc)
+    # Account for the implicit first argument (executable name)
+    push_int(context.cf, instructions, 1)
+    # Stack: args array length (argc), args array length (argc), 1
+    instructions.append(("iadd",))
+    # Stack: args array length (argc), args array length (argc) + 1
     instructions.append(("i2l",))
-    # Stack: args array length (argc), args array length (argc, as long)
-    push_long(context.cf, instructions, ARGC_OFFSET + context.program.memory_capacity)
+    # Stack: args array length (argc), args array length + 1 (argc, as long)
+    instructions.append(("getstatic", context.argc_ref))
     # Stack: args array length (argc), args array length (argc, as long), 0
     instructions.append(("invokestatic", context.store_64_method))
 
+    # Allocate argv pointer
     # Stack: args array length (argc)
+    push_int(context.cf, instructions, LONG_SIZE)
+    # Stack: args array length (argc), 8
+    instructions.append(("invokestatic", context.extend_mem_method))
+    # Stack: args array length (argc), argv location
+    instructions.append(("putstatic", context.argv_ref))
+    # Stack: args array length (argc)
+
     instructions.append(("dup",))
     # Stack: args array length (argc), args array length (argc)
+    # Account for the terminating null value and the implicit first argument (executable name)
+    push_int(context.cf, instructions, 2)
+    # Stack: args array length (argc), args array length (argc), 1
+    instructions.append(("iadd",))
+    # Stack: args array length (argc), args array length (argc) + 1
     push_int(context.cf, instructions, LONG_SIZE)  # 8 bytes
     # Stack: args array length (argc), args array length (argc), 8
     instructions.append(("imul",))
     # Stack: args array length (argc), args array length (argc) * 8
     instructions.append(("invokestatic", context.extend_mem_method))
-    instructions.append(("pop2",))
+    # Stack: args array length (argc), argv table pointer
+    instructions.append(("getstatic", context.argv_ref))
+    # Stack: args array length (argc), argv table pointer, argv pointer
+    instructions.append(("invokestatic", context.store_64_method))
     # Stack: args array length (argc)
 
-    # Store offset
-    instructions.append(("getstatic", context.memory_ref))
-    # Stack: args array length (argc), memory
-    instructions.append(("arraylength",))
-    # Stack: args array length (argc), memory capacity
-    instructions.append(("istore", offset))
+    push_constant(instructions, context.cf.constants.create_string(context.program_name + "\0"))
+    # Stack: args array length (argc), program name
+    instructions.append(("invokestatic", context.put_string_method))
+    # Stack: args array length (argc), insertion pointer
+    instructions.append(("getstatic", context.argv_ref))
+    instructions.append(("invokestatic", context.load_64_method))
+    # Stack: args array length (argc), insertion pointer, argv
+    instructions.append(("invokestatic", context.store_64_method))
+    # Stack: args array length (argc)
 
     push_int(context.cf, instructions, 0)
     # Stack: args array length (argc), 0
@@ -80,18 +101,27 @@ def prepare_argv_method_instructions(context: GenerateContext):
     instructions.append(("invokestatic", context.extend_mem_method))
     instructions.append(("pop2",))
     # Stack: args array length (argc), offset
-    push_int(context.cf, instructions, ARGV_OFFSET + context.program.memory_capacity)
-    # Stack: args array length (argc), offset, 1
+    instructions.append(("getstatic", context.argv_ref))
+    instructions.append(("invokestatic", context.load_64_method))
+    instructions.append(("l2i",))
+    # Stack: args array length (argc), offset, argv
     instructions.append(("iload", counter))
-    # Stack: args array length (argc), offset (as long), ARGV_OFFSET, index
-    push_int(context.cf, instructions, LONG_SIZE)
-    # Stack: args array length (argc), offset (as long), ARGV_OFFSET, index, 8
-    instructions.append(("imul",))
-    # Stack: args array length (argc), offset (as long), ARGV_OFFSET, index * 8
+    # Stack: args array length (argc), offset, argv, counter
+
+    # Account for the implicit first argument (executable name)
+    push_int(context.cf, instructions, 1)
+    # Stack: args array length (argc), offset, argv, counter, 1
     instructions.append(("iadd",))
-    # Stack: args array length (argc), offset (as long), ARGV_OFFSET + index * 8
+    # Stack: args array length (argc), offset, argv, counter + 1
+
+    push_int(context.cf, instructions, LONG_SIZE)
+    # Stack: args array length (argc), offset, argv, counter + 1, 8
+    instructions.append(("imul",))
+    # Stack: args array length (argc), offset, argv, (counter + 1) * 8
+    instructions.append(("iadd",))
+    # Stack: args array length (argc), offset, ((counter + 1) * 8) + argv
     instructions.append(("i2l",))
-    # Stack: args array length (argc), offset (as long), ARGV_OFFSET + index * 8 (as long)
+    # Stack: args array length (argc), offset, ((counter + 1) * 8) + argv (as long)
     instructions.append(("invokestatic", context.store_64_method))
     # Stack: args array length (argc)
     instructions.append(("iinc", counter, 1))
@@ -102,6 +132,9 @@ def prepare_argv_method_instructions(context: GenerateContext):
     # Stack: args array length (argc)
     instructions.append(("pop",))
     # Stack: (empty)
+
+    # print_memory(context, instructions)
+
     instructions.append(("return",))
 
     return instructions
@@ -163,7 +196,7 @@ def prepare_envp_method_instructions(context: GenerateContext):
     # Stack: env map, env map size * 8, env map size * 8, envp offset, envp offset, envp offset
     instructions.append(("i2l",))
     # Stack: env map, env map size * 8, env map size * 8, envp offset, envp offset, envp offset (as long)
-    instructions.append(("putstatic", context.environ_ref))
+    instructions.append(("putstatic", context.envp_ref))
     # Stack: env map, env map size * 8, env map size * 8, envp offset, envp offset
     instructions.append(("dup_x2",))
     # Stack: env map, env map size * 8, envp offset, env map size * 8, envp offset, envp offset
@@ -236,7 +269,7 @@ def prepare_envp_method_instructions(context: GenerateContext):
     # Stack: "key=value"
     instructions.append(("invokestatic", context.put_string_method))
     # Stack: index (as long)
-    instructions.append(("getstatic", context.environ_ref))
+    instructions.append(("getstatic", context.envp_ref))
     # Stack: index (as long), envp offset (as long)
     instructions.append(("l2i",))
     # Stack: index (as long), envp offset

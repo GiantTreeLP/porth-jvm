@@ -11,11 +11,11 @@ from jawa.methods import Method
 
 from extensions.DeduplicatingClassFile import DeduplicatingClassFile
 from jvm.commons import count_locals, push_long, push_int, string_get_bytes, \
-    ARGC_OFFSET, ARGV_OFFSET, print_long_method_instructions, push_constant, calculate_max_stack
+    print_long_method_instructions, push_constant, calculate_max_stack
 from jvm.context import GenerateContext
 from jvm.intrinsics.args import prepare_argv_method_instructions, prepare_envp_method_instructions
 from jvm.intrinsics.init import clinit_method_instructions
-from jvm.intrinsics.load import load_64, load_64_method_instructions, \
+from jvm.intrinsics.load import load_64_method_instructions, \
     load_32_method_instructions, load_16_method_instructions, load_8_method_instructions
 from jvm.intrinsics.memory import extend_mem_method_instructions, put_string_method_instructions
 from jvm.intrinsics.procedures import Procedure
@@ -41,13 +41,14 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
 
     cf = DeduplicatingClassFile.create(class_name)
     context.cf = cf
+    context.program_name = input_path
 
     main_method = cf.methods.create("main", "([Ljava/lang/String;)V", code=True)
     main_method.access_flags.acc_public = True
     main_method.access_flags.acc_static = True
     main_method.access_flags.acc_synthetic = True
 
-    cf.attributes.create(SourceFileAttribute).source_file = cf.constants.create_utf8(input_path)
+    cf.attributes.create(SourceFileAttribute).source_file = cf.constants.create_utf8(context.program_name)
 
     add_fields(context)
 
@@ -81,28 +82,20 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
 
 
 def add_fields(context: GenerateContext):
-    memory = context.cf.fields.create("memory", "[B")
-    memory.access_flags.acc_public = False
-    memory.access_flags.acc_private = True
-    memory.access_flags.acc_static = True
-    memory.access_flags.acc_synthetic = True
-    context.memory_ref = context.cf.constants.create_field_ref(context.cf.this.name.value, memory.name.value,
-                                                               memory.descriptor.value)
-    environ = context.cf.fields.create("environ", "J")
-    environ.access_flags.acc_public = False
-    environ.access_flags.acc_private = True
-    environ.access_flags.acc_static = True
-    environ.access_flags.acc_synthetic = True
-    context.environ_ref = context.cf.constants.create_field_ref(context.cf.this.name.value, environ.name.value,
-                                                                environ.descriptor.value)
+    context.memory_ref = add_field(context, "memory", "[B")
+    context.argc_ref = add_field(context, "argc", "J")
+    context.argv_ref = add_field(context, "argv", "J")
+    context.envp_ref = add_field(context, "environ", "J")
+    context.fd_ref = add_field(context, "fds", "[Ljava/io/FileDescriptor;")
 
-    file_descriptors = context.cf.fields.create("fds", "[Ljava/io/FileDescriptor;")
-    file_descriptors.access_flags.acc_public = False
-    file_descriptors.access_flags.acc_private = True
-    file_descriptors.access_flags.acc_static = True
-    file_descriptors.access_flags.acc_synthetic = True
-    context.fd_ref = context.cf.constants.create_field_ref(context.cf.this.name.value, file_descriptors.name.value,
-                                                           file_descriptors.descriptor.value)
+
+def add_field(context: GenerateContext, name: str, descriptor: str):
+    field = context.cf.fields.create(name, descriptor)
+    field.access_flags.acc_public = False
+    field.access_flags.acc_private = True
+    field.access_flags.acc_static = True
+    field.access_flags.acc_synthetic = True
+    return context.cf.constants.create_field_ref(context.cf.this.name.value, field.name.value, field.descriptor.value)
 
 
 def add_utility_methods(context: GenerateContext):
@@ -187,7 +180,7 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
     local_variable_index = 0
     local_memory_var: Optional[int] = None
 
-    if not procedure:
+    if not procedure:  # We are in the main method
         instructions.append(("aload_0",))
         instructions.append(("invokestatic", context.prepare_argv_method))
         instructions.append(("invokestatic", context.prepare_envp_method))
@@ -256,7 +249,7 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
         elif op.typ == OpType.PUSH_LOCAL_MEM:
             assert isinstance(op.operand, MemAddr), "This could be a bug in the parsing step"
             assert procedure, "No local memory outside a procedure"
-            assert local_memory_var is not None, "No local memory outside a procedure"
+            assert local_memory_var is not None, "No local memory defined"
 
             instructions.append(("iload", local_memory_var))
             push_int(context.cf, instructions, op.operand)
@@ -290,7 +283,7 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
 
             if procedure:
                 for i in range(len(procedure.contract.ins)):
-                    instructions.append(("lload", i * 2))
+                    instructions.append(("lload", local_variable_index + i * 2))
 
             current_proc = ip
 
@@ -436,13 +429,13 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
             elif op.operand == Intrinsic.STORE64:
                 instructions.append(("invokestatic", context.store_64_method))
             elif op.operand == Intrinsic.ARGC:
-                instructions.append(("getstatic", context.memory_ref))
-                push_long(context.cf, instructions, ARGC_OFFSET + context.program.memory_capacity)
-                load_64(context, instructions)
+                instructions.append(("getstatic", context.argc_ref))
+                instructions.append(("invokestatic", context.load_64_method))
             elif op.operand == Intrinsic.ARGV:
-                push_long(context.cf, instructions, ARGV_OFFSET + context.program.memory_capacity)
+                instructions.append(("getstatic", context.argv_ref))
+                instructions.append(("invokestatic", context.load_64_method))
             elif op.operand == Intrinsic.ENVP:
-                instructions.append(("getstatic", context.environ_ref))
+                instructions.append(("getstatic", context.envp_ref))
                 pass
             elif op.operand == Intrinsic.HERE:
                 value = ("%s:%d:%d" % op.token.loc)
@@ -520,6 +513,7 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
         instructions.append(("iload", local_memory_var))
         instructions.append(("isub",))
         instructions.append(("invokestatic", context.extend_mem_method))
+        instructions.append(("pop2",))
 
     if procedure:
         if len(procedure.contract.outs) == 0:

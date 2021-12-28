@@ -1,7 +1,10 @@
 from collections import deque
 from typing import MutableSequence
 
-from jvm.commons import push_int, system_arraycopy, string_get_bytes
+from jawa.assemble import Label
+
+from jvm.commons import push_int, system_arraycopy, string_get_bytes, print_string, push_constant, print_long, \
+    LONG_SIZE
 from jvm.context import GenerateContext
 
 
@@ -103,3 +106,130 @@ def put_string_method_instructions(context: GenerateContext):
     instructions.append(("lreturn",))
 
     return instructions
+
+
+def cstrlen(context: GenerateContext, instructions: MutableSequence):
+    # Stack: cstr pointer (as long)
+    instructions.append(("l2i",))
+    # Stack: cstr pointer
+    push_int(context.cf, instructions, 0)
+    # Stack: cstr pointer, counter
+    instructions.append(("swap",))
+    # Stack: counter, cstr pointer
+    instructions.append(Label("cstr_loop"))
+    instructions.append(("dup",))
+    # Stack: counter, cstr pointer, cstr pointer
+    instructions.append(("i2l",))
+    # Stack: counter, cstr pointer, cstr pointer (as long)
+    instructions.append(("invokestatic", context.load_8_method))
+    # Stack: counter, cstr pointer, cstr byte
+    instructions.append(("l2i",))
+    # Stack: counter, cstr pointer, cstr byte (as int)
+    instructions.append(("ifeq", Label("cstr_loop_end")))
+    # Stack: counter, cstr pointer
+    push_int(context.cf, instructions, 1)
+    # Stack: counter, cstr pointer, 1
+    instructions.append(("iadd",))
+    # Stack: counter, cstr pointer + 1
+    instructions.append(("swap",))
+    # Stack: cstr pointer + 1, counter
+    push_int(context.cf, instructions, 1)
+    # Stack: cstr pointer + 1, counter, 1
+    instructions.append(("iadd",))
+    # Stack: cstr pointer + 1, counter + 1
+    instructions.append(("swap",))
+    # Stack: counter + 1, cstr pointer + 1
+    instructions.append(("goto", Label("cstr_loop")))
+
+    instructions.append(Label("cstr_loop_end"))
+    # Stack: counter, cstr pointer
+    instructions.append(("pop",))
+    # Stack: counter
+
+
+def print_memory(context: GenerateContext, instructions: MutableSequence):
+    instructions.append(("getstatic", context.memory_ref))
+    # Stack: memory
+    instructions.append(("invokestatic", context.cf.constants.create_method_ref(
+        "java/util/Arrays",
+        "toString",
+        "([B)Ljava/lang/String;"
+    )))
+    # Stack: string
+    print_string(context.cf, instructions)
+
+    # argc
+    push_constant(instructions, context.cf.constants.create_string("argc: "))
+    print_string(context.cf, instructions)
+
+    instructions.append(("getstatic", context.argc_ref))
+    print_long(context.cf, instructions)
+
+    push_constant(instructions, context.cf.constants.create_string("*argc: "))
+    print_string(context.cf, instructions)
+
+    instructions.append(("getstatic", context.argc_ref))
+    instructions.append(("invokestatic", context.load_64_method))
+    print_long(context.cf, instructions)
+
+    # argv
+    push_constant(instructions, context.cf.constants.create_string("argv: "))
+    print_string(context.cf, instructions)
+
+    instructions.append(("getstatic", context.argv_ref))
+    print_long(context.cf, instructions)
+
+    push_constant(instructions, context.cf.constants.create_string("*argv: "))
+    print_string(context.cf, instructions)
+
+    instructions.append(("getstatic", context.argv_ref))
+    instructions.append(("invokestatic", context.load_64_method))
+    print_long(context.cf, instructions)
+
+    push_constant(instructions, context.cf.constants.create_string("arguments: "))
+    print_string(context.cf, instructions)
+
+    push_int(context.cf, instructions, 0)  # Counter
+    # Stack: counter
+    instructions.append(Label("loop_start"))
+    instructions.append(("dup",))
+    # Stack: counter, counter
+    instructions.append(("getstatic", context.argc_ref))
+    # Stack: counter, counter, argc
+    instructions.append(("invokestatic", context.load_64_method))
+    # Stack: counter, counter, argc
+    instructions.append(("l2i",))
+    # Stack: counter, counter, argc
+    instructions.append(("if_icmpge", Label("loop_end")))
+    # Stack: counter
+    instructions.append(("dup",))
+    # Stack: counter, counter
+    push_int(context.cf, instructions, LONG_SIZE)
+    # Stack: counter, counter, 8
+    instructions.append(("imul",))
+    # Stack: counter, counter * 8
+    instructions.append(("getstatic", context.argv_ref))
+    # Stack: counter, counter * 8, argv
+    instructions.append(("l2i",))
+    # Stack: counter, counter * 8, argv
+    instructions.append(("iadd",))
+    # Stack: counter, counter * 8 + argv
+    instructions.append(("i2l",))
+    # Stack: counter, counter * 8 + argv
+    instructions.append(("invokestatic", context.load_64_method))
+    # Stack: counter, arg pointer
+    instructions.append(("dup2",))
+    # Stack: counter, arg pointer, arg pointer
+    cstrlen(context, instructions)
+    # Stack: counter, arg pointer, arg length
+    instructions.append(("i2l",))
+    print_long(context.cf, instructions)
+    instructions.append(("pop2",))
+    push_int(context.cf, instructions, 1)
+    instructions.append(("iadd",))
+    instructions.append(("goto", Label("loop_start")))
+
+    instructions.append(Label("loop_end"))
+    # Stack: counter
+    instructions.append(("pop",))
+    # Stack: (empty)

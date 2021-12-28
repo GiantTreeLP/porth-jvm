@@ -10,6 +10,7 @@ from porth.porth import Program
 @dataclass(init=False)
 class GenerateContext:
     program: Program
+    program_name: str
     procedures: dict[str, Procedure]
 
     cf: ClassFile
@@ -28,5 +29,7 @@ class GenerateContext:
     put_string_method: MethodReference
 
     memory_ref: FieldReference
-    environ_ref: FieldReference
+    argc_ref: FieldReference
+    argv_ref: FieldReference
+    envp_ref: FieldReference
     fd_ref: FieldReference

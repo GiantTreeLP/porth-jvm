@@ -9,6 +9,8 @@ from jawa.util.bytecode import Instruction
 from jvm.context import GenerateContext
 from jvm.instructions import INSTRUCTIONS, OperandType
 
+LONG_SIZE = 8
+
 
 def _print_boilerplate(cf: ClassFile, signature: str, fd: str):
     return (("getstatic", (cf.constants.create_field_ref("java/lang/System", fd, "Ljava/io/PrintStream;"))),
@@ -38,8 +40,9 @@ def write_bytes_err(cf: ClassFile):
     return _write_boilerplate(cf, "([BII)V", "err")
 
 
-def print_string(cf: ClassFile):
-    return _print_boilerplate(cf, "(Ljava/lang/String;)V", "out")
+def print_string(cf: ClassFile, instructions: MutableSequence):
+    for ins in _print_boilerplate(cf, "(Ljava/lang/String;)V", "out"):
+        instructions.append(ins)
 
 
 def print_string_err(cf: ClassFile):
@@ -61,8 +64,9 @@ def _print_boilerplate_wide(cf: ClassFile, signature: str):
             )),)
 
 
-def print_long(cf: ClassFile):
-    return _print_boilerplate_wide(cf, "(J)V")
+def print_long(cf: ClassFile, instructions: MutableSequence):
+    for ins in _print_boilerplate_wide(cf, "(J)V"):
+        instructions.append(ins)
 
 
 def print_long_method_instructions(cf: ClassFile):
@@ -232,29 +236,11 @@ def system_arraycopy(cf: ClassFile, instructions: MutableSequence):
     )))
 
 
-def print_memory(context: GenerateContext, instructions: MutableSequence):
-    instructions.append(("getstatic", context.memory_ref))
-    # Stack: memory
-    instructions.append(("invokestatic", context.cf.constants.create_method_ref(
-        "java/util/Arrays",
-        "toString",
-        "([B)Ljava/lang/String;"
-    )))
-    # Stack: string
-    for ins in print_string(context.cf):
-        instructions.append(ins)
-
-
 def push_constant(instructions: MutableSequence, constant: Constant):
     if constant.index <= 255:
         instructions.append(("ldc", constant))
     else:
         instructions.append(("ldc_w", constant))
-
-
-ARGC_OFFSET = 0
-ARGV_OFFSET = 8
-LONG_SIZE = 8
 
 
 def calculate_max_stack(context: GenerateContext, instructions: Iterable[Instruction]) -> int:
