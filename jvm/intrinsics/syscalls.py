@@ -8,10 +8,6 @@ from jvm.context import GenerateContext
 SYSCALL_READ = 0x0
 SYSCALL_WRITE = 0x1
 
-STDIN = 0
-STDOUT = 1
-STDERR = 2
-
 
 def syscall3_method_instructions(context: GenerateContext):
     instructions = deque()

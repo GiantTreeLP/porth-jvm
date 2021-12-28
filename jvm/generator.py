@@ -177,7 +177,7 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
     instructions = deque()
     current_proc: Optional[OpAddr] = None
 
-    local_variable_index = 0
+    local_variable_index = count_locals(method.descriptor.value, ()) - 1
     local_memory_var: Optional[int] = None
 
     if not procedure:  # We are in the main method
@@ -283,7 +283,7 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
 
             if procedure:
                 for i in range(len(procedure.contract.ins)):
-                    instructions.append(("lload", local_variable_index + i * 2))
+                    instructions.append(("lload", i * 2))
 
             current_proc = ip
 
@@ -430,10 +430,10 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
                 instructions.append(("invokestatic", context.store_64_method))
             elif op.operand == Intrinsic.ARGC:
                 instructions.append(("getstatic", context.argc_ref))
-                instructions.append(("invokestatic", context.load_64_method))
+                # instructions.append(("invokestatic", context.load_64_method))
             elif op.operand == Intrinsic.ARGV:
                 instructions.append(("getstatic", context.argv_ref))
-                instructions.append(("invokestatic", context.load_64_method))
+                # instructions.append(("invokestatic", context.load_64_method))
             elif op.operand == Intrinsic.ENVP:
                 instructions.append(("getstatic", context.envp_ref))
                 pass
