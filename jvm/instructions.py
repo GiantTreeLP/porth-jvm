@@ -1,22 +1,25 @@
-from typing import NamedTuple, List, Dict, Union, Callable
+from collections import deque
+from typing import NamedTuple, List, Dict, Union, Callable, Deque, Tuple, TypeAlias, Iterable
 
-from jawa.constants import FieldReference, MethodReference
+from jawa.assemble import assemble, Label
+from jawa.constants import FieldReference, MethodReference, Constant, ConstantClass
+
+from jvm.context import GenerateContext
 
 
-class OperandType(NamedTuple("OperandType", [("size", int)])):
+class OperandType(NamedTuple("OperandType", [("size", int), ("arraytype", int)])):
     size: int
 
 
-Reference = OperandType(size=1)
-Integer = OperandType(size=1)
-Float = OperandType(size=1)
-Byte = OperandType(size=1)
-Short = OperandType(size=1)
-Char = OperandType(size=1)
-Boolean = OperandType(size=1)
-Long = OperandType(size=2)
-Double = OperandType(size=2)
-
+Reference = OperandType(size=1, arraytype=-1)
+Integer = OperandType(size=1, arraytype=10)
+Float = OperandType(size=1, arraytype=6)
+Byte = OperandType(size=1, arraytype=8)
+Short = OperandType(size=1, arraytype=9)
+Char = OperandType(size=1, arraytype=5)
+Boolean = OperandType(size=1, arraytype=4)
+Long = OperandType(size=2, arraytype=11)
+Double = OperandType(size=2, arraytype=7)
 
 TYPE_TO_TYPE = {
     'I': Integer,
@@ -91,6 +94,7 @@ def instance_method_input_types(method_reference: MethodReference) -> List[Opera
     return [Reference, *get_method_input_types(method_reference)]
 
 
+# <editor-fold desc="Instructions" defaultstate="collapsed">
 INSTRUCTIONS: Dict[int, InstructionInfo] = {
     0x00: {
         "name": "nop",
@@ -1323,5 +1327,658 @@ INSTRUCTIONS: Dict[int, InstructionInfo] = {
         "outputs": [],
     },
 }
+# </editor-fold>
 
 INSTRUCTIONS = dict(map(lambda item: (item[0], InstructionInfo(**item[1])), INSTRUCTIONS.items()))
+
+Instruction: TypeAlias = Union[Label, str]
+Operand: TypeAlias = Union[Label, Constant, int, Dict[int, Label]]
+InstructionsType: TypeAlias = Union[
+    Tuple[Instruction], Tuple[Instruction, Operand], Tuple[Instruction, Operand, Operand]]
+LabelType: TypeAlias = Union[str, Label]
+
+
+class Instructions(object):
+    _context: GenerateContext
+    _instructions: Deque[InstructionsType]
+
+    def __init__(self, context: GenerateContext):
+        self._instructions = deque()
+        self._context = context
+
+    @property
+    def instructions(self):
+        return self._instructions.copy()
+
+    @staticmethod
+    def _map_label(label: LabelType) -> Label:
+        if isinstance(label, Label):
+            return label
+        else:
+            return Label(label)
+
+    def assemble(self):
+        return assemble(self._instructions)
+
+    def append(self, instruction: Instruction, *operands: Operand) -> 'Instructions':
+        self._instructions.append((instruction, *operands))
+        return self
+
+    def label(self, name: LabelType) -> 'Instructions':
+        return self.append(self._map_label(name))
+
+    def push_constant(self, constant: Constant) -> 'Instructions':
+        if constant.index <= 255:
+            self._instructions.append(("ldc", constant))
+        else:
+            self._instructions.append(("ldc_w", constant))
+        return self
+
+    def push_long(self, long: int) -> 'Instructions':
+        if long == 0:
+            self._instructions.append(("lconst_0",))
+        elif long == 1:
+            self._instructions.append(("lconst_1",))
+        elif long in range(-128, 128):
+            self._instructions.append(("bipush", long), )
+            self._instructions.append(("i2l",))
+        elif long in range(-32768, 32768):
+            self._instructions.append(("sipush", long), )
+            self._instructions.append(("i2l",))
+        elif long in range(-2147483648, 2147483648):
+            self.push_constant(self._context.cf.constants.create_integer(long))
+            self._instructions.append(("i2l",))
+        else:
+            self._instructions.append(("ldc2_w", self._context.cf.constants.create_long(long)))
+        return self
+
+    def push_integer(self, integer: int) -> 'Instructions':
+        if integer < -32768:
+            self.push_constant(self._context.cf.constants.create_integer(integer))
+        elif integer < -128:
+            self._instructions.append(("sipush", integer), )
+        elif integer < -1:
+            self._instructions.append(("bipush", integer), )
+        elif integer == -1:
+            self._instructions.append(("iconst_m1",))
+        elif integer <= 5:
+            self._instructions.append((f"iconst_{integer}",))
+        elif integer in range(-128, 128):
+            self._instructions.append(("bipush", integer), )
+        elif integer in range(-32768, 32768):
+            self._instructions.append(("sipush", integer), )
+        elif integer in range(-2147483648, 2147483648):
+            self.push_constant(self._context.cf.constants.create_integer(integer))
+        else:
+            raise ValueError(f"{integer} greater than MAX_INT")
+        return self
+
+    # <editor-fold desc="Drops/Pops" defaultstate="collapsed" defaultstate="collapsed">
+    def pop(self) -> 'Instructions':
+        return self.append("pop")
+
+    def pop2(self) -> 'Instructions':
+        return self.append("pop2")
+
+    def drop(self) -> 'Instructions':
+        return self.pop()
+
+    def drop_long(self):
+        return self.pop2()
+
+    def drop_double(self):
+        return self.pop2()
+
+    # </editor-fold>
+
+    # <editor-fold desc="Loads" defaultstate="collapsed" defaultstate="collapsed">
+    def load_reference(self, index: int) -> 'Instructions':
+        if 0 >= index >= 3:
+            return self.append(f"aload_{index}")
+        else:
+            return self.append("aload", index)
+
+    def load_double(self, index: int) -> 'Instructions':
+        if 0 >= index >= 3:
+            return self.append(f"dload_{index}")
+        else:
+            return self.append("dload", index)
+
+    def load_float(self, index: int) -> 'Instructions':
+        if 0 >= index >= 3:
+            return self.append(f"fload_{index}")
+        else:
+            return self.append("fload", index)
+
+    def load_integer(self, index: int) -> 'Instructions':
+        if 0 >= index >= 3:
+            return self.append(f"iload_{index}")
+        else:
+            return self.append("iload", index)
+
+    def load_long(self, index: int) -> 'Instructions':
+        if 0 >= index >= 3:
+            return self.append(f"lload_{index}")
+        else:
+            return self.append("lload", index)
+
+    # </editor-fold>
+
+    # <editor-fold desc="Stores" defaultstate="collapsed">
+    def store_reference(self, index: int) -> 'Instructions':
+        if 0 >= index >= 3:
+            return self.append(f"astore_{index}")
+        else:
+            return self.append("astore", index)
+
+    def store_double(self, index: int) -> 'Instructions':
+        if 0 >= index >= 3:
+            return self.append(f"dstore_{index}")
+        else:
+            return self.append("dstore", index)
+
+    def store_float(self, index: int) -> 'Instructions':
+        if 0 >= index >= 3:
+            return self.append(f"fstore_{index}")
+        else:
+            return self.append("fstore", index)
+
+    def store_integer(self, index: int) -> 'Instructions':
+        if 0 >= index >= 3:
+            return self.append(f"istore_{index}")
+        else:
+            return self.append("istore", index)
+
+    def store_long(self, index: int) -> 'Instructions':
+        if 0 >= index >= 3:
+            return self.append(f"lstore_{index}")
+        else:
+            return self.append("lstore", index)
+
+    # </editor-fold>
+
+    # <editor-fold desc="Array operations" defaultstate="collapsed">
+    def array_length(self) -> 'Instructions':
+        return self.append("arraylength")
+
+    def new_array(self, primitive_type: int) -> 'Instructions':
+        return self.append("newarray", primitive_type)
+
+    def new_reference_array(self, reference_type: ConstantClass) -> 'Instructions':
+        return self.append("anewarray", reference_type)
+
+    def new_multi_dimension_reference_array(self, reference_type: ConstantClass, dimensions: int) -> 'Instructions':
+        return self.append("multianewarray", reference_type, dimensions)
+
+    # <editor-fold desc="Load from array" defaultstate="collapsed">
+    def load_array_reference(self) -> 'Instructions':
+        return self.append("aaload")
+
+    def load_array_double(self) -> 'Instructions':
+        return self.append("daload")
+
+    def load_array_float(self) -> 'Instructions':
+        return self.append("faload")
+
+    def load_array_integer(self) -> 'Instructions':
+        return self.append("iaload")
+
+    def load_array_long(self) -> 'Instructions':
+        return self.append("laload")
+
+    def load_array_short(self) -> 'Instructions':
+        return self.append("saload")
+
+    def load_array_byte(self) -> 'Instructions':
+        return self.append("baload")
+
+    def load_array_char(self) -> 'Instructions':
+        return self.append("caload")
+
+    def load_array_boolean(self) -> 'Instructions':
+        return self.load_array_byte()
+
+    # </editor-fold>
+
+    # <editor-fold desc="Store to array" defaultstate="collapsed">
+    def store_array_reference(self) -> 'Instructions':
+        return self.append("aastore")
+
+    def store_array_double(self) -> 'Instructions':
+        return self.append("dastore")
+
+    def store_array_float(self) -> 'Instructions':
+        return self.append("fastore")
+
+    def store_array_integer(self) -> 'Instructions':
+        return self.append("iastore")
+
+    def store_array_long(self) -> 'Instructions':
+        return self.append("lastore")
+
+    def store_array_short(self) -> 'Instructions':
+        return self.append("sastore")
+
+    def store_array_byte(self) -> 'Instructions':
+        return self.append("bastore")
+
+    def store_array_char(self) -> 'Instructions':
+        return self.append("castore")
+
+    def store_array_boolean(self) -> 'Instructions':
+        return self.store_array_byte()
+
+    # </editor-fold>
+
+    # </editor-fold>
+
+    # <editor-fold desc="Conversions" defaultstate="collapsed">
+    def convert_double_to_float(self) -> 'Instructions':
+        return self.append("d2f")
+
+    def convert_double_to_integer(self) -> 'Instructions':
+        return self.append("d2i")
+
+    def convert_double_to_long(self) -> 'Instructions':
+        return self.append("d2l")
+
+    def convert_float_to_double(self) -> 'Instructions':
+        return self.append("f2d")
+
+    def convert_float_to_integer(self) -> 'Instructions':
+        return self.append("f2i")
+
+    def convert_float_to_long(self) -> 'Instructions':
+        return self.append("f2l")
+
+    def convert_integer_to_byte(self) -> 'Instructions':
+        return self.append("i2b")
+
+    def convert_integer_to_char(self) -> 'Instructions':
+        return self.append("i2c")
+
+    def convert_integer_to_double(self) -> 'Instructions':
+        return self.append("i2d")
+
+    def convert_integer_to_float(self) -> 'Instructions':
+        return self.append("i2f")
+
+    def convert_integer_to_long(self) -> 'Instructions':
+        return self.append("i2l")
+
+    def convert_integer_to_short(self) -> 'Instructions':
+        return self.append("i2s")
+
+    def convert_long_to_double(self) -> 'Instructions':
+        return self.append("l2d")
+
+    def convert_long_to_float(self) -> 'Instructions':
+        return self.append("l2f")
+
+    def convert_long_to_integer(self) -> 'Instructions':
+        return self.append("l2i")
+
+    # </editor-fold>
+
+    # <editor-fold desc="Duplications" defaultstate="collapsed">
+    def duplicate_top_of_stack(self) -> 'Instructions':
+        return self.append("dup")
+
+    def duplicate_top_2_of_stack(self) -> 'Instructions':
+        return self.append("dup2")
+
+    def duplicate_long(self) -> 'Instructions':
+        return self.duplicate_top_2_of_stack()
+
+    def duplicate_double(self) -> 'Instructions':
+        return self.duplicate_top_2_of_stack()
+
+    def duplicate_behind_top_of_stack(self) -> 'Instructions':
+        return self.append("dup_x1")
+
+    def duplicate_behind_top_2_of_stack(self) -> 'Instructions':
+        return self.append("dup_x2")
+
+    def duplicate_behind_long(self) -> 'Instructions':
+        return self.duplicate_behind_top_2_of_stack()
+
+    def duplicate_behind_double(self) -> 'Instructions':
+        return self.duplicate_behind_top_2_of_stack()
+
+    def duplicate_top_2_behind_top_3_of_stack(self) -> 'Instructions':
+        return self.append("dup2_x1")
+
+    def duplicate_long_behind_top_2_of_stack(self) -> 'Instructions':
+        return self.duplicate_top_2_behind_top_3_of_stack()
+
+    def duplicate_double_behind_top_2_of_stack(self) -> 'Instructions':
+        return self.duplicate_top_2_behind_top_3_of_stack()
+
+    def duplicate_top_2_behind_top_4_of_stack(self) -> 'Instructions':
+        return self.append("dup2_x2")
+
+    def duplicate_long_behind_top_3_of_stack(self) -> 'Instructions':
+        return self.duplicate_top_2_behind_top_4_of_stack()
+
+    def duplicate_double_behind_top_3_of_stack(self) -> 'Instructions':
+        return self.duplicate_top_2_behind_top_4_of_stack()
+
+    def duplicate_top_2_behind_long(self) -> 'Instructions':
+        return self.duplicate_top_2_behind_top_4_of_stack()
+
+    def duplicate_top_2_behind_double(self) -> 'Instructions':
+        return self.duplicate_top_2_behind_top_4_of_stack()
+
+    def duplicate_long_behind_long(self) -> 'Instructions':
+        return self.duplicate_top_2_behind_top_4_of_stack()
+
+    def duplicate_double_behind_double(self) -> 'Instructions':
+        return self.duplicate_top_2_behind_top_4_of_stack()
+
+    # </editor-fold>
+
+    # <editor-fold desc="Swaps" defaultstate="collapsed">
+    def swap(self) -> 'Instructions':
+        return self.append("swap")
+
+    def swap_longs(self) -> 'Instructions':
+        return self.duplicate_long_behind_long().drop_long()
+
+    def swap_doubles(self) -> 'Instructions':
+        return self.duplicate_double_behind_double().drop_double()
+
+    # </editor-fold>
+
+    # <editor-fold desc="Arithmetic" defaultstate="collapsed">
+
+    # <editor-fold desc="Addition" defaultstate="collapsed">
+    def add_integer(self) -> 'Instructions':
+        return self.append("iadd")
+
+    def add_long(self) -> 'Instructions':
+        return self.append("ladd")
+
+    def add_double(self) -> 'Instructions':
+        return self.append("dadd")
+
+    def add_float(self) -> 'Instructions':
+        return self.append("fadd")
+
+    # </editor-fold>
+
+    # <editor-fold desc="Subtraction" defaultstate="collapsed">
+    def subtract_integer(self) -> 'Instructions':
+        return self.append("isub")
+
+    def subtract_long(self) -> 'Instructions':
+        return self.append("lsub")
+
+    def subtract_double(self) -> 'Instructions':
+        return self.append("dsub")
+
+    def subtract_float(self) -> 'Instructions':
+        return self.append("fsub")
+
+    # </editor-fold>
+
+    # <editor-fold desc="Multiplication" defaultstate="collapsed">
+    def multiply_integer(self) -> 'Instructions':
+        return self.append("imul")
+
+    def multiply_long(self) -> 'Instructions':
+        return self.append("lmul")
+
+    def multiply_double(self) -> 'Instructions':
+        return self.append("dmul")
+
+    def multiply_float(self) -> 'Instructions':
+        return self.append("fmul")
+
+    # </editor-fold>
+
+    # <editor-fold desc="Division" defaultstate="collapsed">
+    def divide_integer(self) -> 'Instructions':
+        return self.append("idiv")
+
+    def divide_long(self) -> 'Instructions':
+        return self.append("ldiv")
+
+    def divide_double(self) -> 'Instructions':
+        return self.append("ddiv")
+
+    def divide_float(self) -> 'Instructions':
+        return self.append("fdiv")
+
+    # </editor-fold>
+
+    # <editor-fold desc="Remainder/Modulo" defaultstate="collapsed">
+    def modulo_integer(self) -> 'Instructions':
+        return self.append("irem")
+
+    def modulo_long(self) -> 'Instructions':
+        return self.append("lrem")
+
+    def modulo_double(self) -> 'Instructions':
+        return self.append("drem")
+
+    def modulo_float(self) -> 'Instructions':
+        return self.append("frem")
+
+    # </editor-fold>
+    # </editor-fold>
+
+    # <editor-fold desc="Bitwise" defaultstate="collapsed">
+    # <editor-fold desc="Negation" defaultstate="collapsed">
+    def negate_integer(self) -> 'Instructions':
+        return self.append("ineg")
+
+    def negate_long(self) -> 'Instructions':
+        return self.append("lneg")
+
+    def negate_double(self) -> 'Instructions':
+        return self.append("dneg")
+
+    def negate_float(self) -> 'Instructions':
+        return self.append("fneg")
+
+    # </editor-fold>
+
+    # <editor-fold desc="Shifts" defaultstate="collapsed">
+    # <editor-fold desc="Shift left" defaultstate="collapsed">
+    def shift_left_integer(self) -> 'Instructions':
+        return self.append("ishl")
+
+    def shift_left_long(self) -> 'Instructions':
+        return self.append("lshl")
+
+    # </editor-fold>
+
+    # <editor-fold desc="Shift right" defaultstate="collapsed">
+    def shift_right_integer(self) -> 'Instructions':
+        return self.append("ishr")
+
+    def shift_right_long(self) -> 'Instructions':
+        return self.append("lshr")
+
+    # </editor-fold>
+
+    # <editor-fold desc="Shift right unsigned" defaultstate="collapsed">
+    def unsigned_shift_right_integer(self) -> 'Instructions':
+        return self.append("iushr")
+
+    def unsigned_shift_right_long(self) -> 'Instructions':
+        return self.append("lushr")
+
+    # </editor-fold>
+    # </editor-fold>
+
+    # <editor-fold desc="Bitwise or" defaultstate="collapsed">
+    def or_integer(self) -> 'Instructions':
+        return self.append("ior")
+
+    def or_long(self) -> 'Instructions':
+        return self.append("lor")
+
+    # </editor-fold>
+
+    # <editor-fold desc="Bitwise and" defaultstate="collapsed">
+    def and_integer(self) -> 'Instructions':
+        return self.append("iand")
+
+    def and_long(self) -> 'Instructions':
+        return self.append("land")
+
+    # </editor-fold>
+
+    # <editor-fold desc="Bitwise xor" defaultstate="collapsed">
+    def xor_integer(self) -> 'Instructions':
+        return self.append("ixor")
+
+    def xor_long(self) -> 'Instructions':
+        return self.append("lxor")
+
+    # </editor-fold>
+    # </editor-fold>
+
+    # <editor-fold desc="Comparison" defaultstate="collapsed">
+    def compare_long(self) -> 'Instructions':
+        return self.append("lcmp")
+
+    def compare_double(self) -> 'Instructions':
+        return self.append("dcmpl")
+
+    def compare_float(self) -> 'Instructions':
+        return self.append("fcmpl")
+
+    # </editor-fold>
+
+    # <editor-fold desc="Branching" defaultstate="collapsed">
+    def _branch(self, opcode: str, label: LabelType) -> 'Instructions':
+        label = Instructions._map_label(label)
+        return self.append(opcode, label)
+
+    # <editor-fold desc="Boolean comparisons" defaultstate="collapsed">
+
+    def branch_if_true(self, label: LabelType) -> 'Instructions':
+        return self._branch("ifne", label)
+
+    def branch_if_false(self, label: LabelType) -> 'Instructions':
+        return self._branch("ifeq", label)
+
+    # </editor-fold>
+
+    # <editor-fold desc="Comparison (against 0, from lcmp, dcmpg or fcmpg or directly to an int or boolean)" defaultstate="collapsed">
+    def branch_if_less(self, label: LabelType) -> 'Instructions':
+        return self._branch("iflt", label)
+
+    def branch_if_greater(self, label: LabelType) -> 'Instructions':
+        return self._branch("ifgt", label)
+
+    def branch_if_less_or_equal(self, label: LabelType) -> 'Instructions':
+        return self._branch("ifle", label)
+
+    def branch_if_greater_or_equal(self, label: LabelType) -> 'Instructions':
+        return self._branch("ifge", label)
+
+    def branch_if_equal(self, label: LabelType) -> 'Instructions':
+        return self._branch("ifeq", label)
+
+    def branch_if_not_equal(self, label: LabelType) -> 'Instructions':
+        return self._branch("ifne", label)
+
+    # </editor-fold>
+
+    # <editor-fold desc="Comparison between two integers" defaultstate="collapsed">
+    def branch_if_integer_less(self, label: LabelType) -> 'Instructions':
+        return self._branch("if_icmplt", label)
+
+    def branch_if_integer_greater(self, label: LabelType) -> 'Instructions':
+        return self._branch("if_icmpgt", label)
+
+    def branch_if_integer_less_or_equal(self, label: LabelType) -> 'Instructions':
+        return self._branch("if_icmple", label)
+
+    def branch_if_integer_greater_or_equal(self, label: LabelType) -> 'Instructions':
+        return self._branch("if_icmpge", label)
+
+    def branch_if_integer_equal(self, label: LabelType) -> 'Instructions':
+        return self._branch("if_icmpeq", label)
+
+    def branch_if_integer_not_equal(self, label: LabelType) -> 'Instructions':
+        return self._branch("if_icmpne", label)
+
+    # </editor-fold>
+
+    # <editor-fold desc="Comparison for reference" defaultstate="collapsed">
+    def branch_if_reference_is_null(self, label: LabelType) -> 'Instructions':
+        return self._branch("ifnull", label)
+
+    def branch_if_reference_is_not_null(self, label: LabelType) -> 'Instructions':
+        return self._branch("ifnonnull", label)
+
+    # </editor-fold>
+
+    # <editor-fold desc="Comparison between two references" defaultstate="collapsed">
+    def branch_if_reference_equal(self, label: LabelType) -> 'Instructions':
+        return self._branch("if_acmpeq", label)
+
+    def branch_if_reference_not_equal(self, label: LabelType) -> 'Instructions':
+        return self._branch("if_acmpne", label)
+
+    # </editor-fold>
+
+    # <editor-fold desc="Control flow" defaultstate="collapsed">
+    def branch(self, label: LabelType) -> 'Instructions':
+        return self._branch("goto", label)
+
+    def lookup_switch(self, default: LabelType, branch_pairs: Dict[int, LabelType]) -> 'Instructions':
+        default = Instructions._map_label(default)
+        branch_pairs = {int(k): Instructions._map_label(v) for k, v in branch_pairs.items()}
+        return self.append("lookupswitch", default, branch_pairs)
+
+    def table_switch(self, default: LabelType, low: int, high: int, labels: Iterable[LabelType]) -> 'Instructions':
+        default = Instructions._map_label(default)
+        labels = [Instructions._map_label(label) for label in labels]
+        return self.append("tableswitch", default, low, high, *labels)
+
+    # </editor-fold>
+
+    # </editor-fold>
+
+    # <editor-fold desc="Return from method" defaultstate="collapsed">
+
+    def return_void(self) -> 'Instructions':
+        return self.append("return")
+
+    def return_integer(self) -> 'Instructions':
+        return self.append("ireturn")
+
+    def return_float(self) -> 'Instructions':
+        return self.append("freturn")
+
+    def return_reference(self) -> 'Instructions':
+        return self.append("areturn")
+
+    def return_long(self) -> 'Instructions':
+        return self.append("lreturn")
+
+    def return_double(self) -> 'Instructions':
+        return self.append("dreturn")
+
+    # </editor-fold>
+
+    # <editor-fold desc="Field operations" defaultstate="collapsed">
+
+    def get_static_field(self, field: FieldReference) -> 'Instructions':
+        return self.append("getstatic", field)
+
+    def put_static_field(self, field: FieldReference) -> 'Instructions':
+        return self.append("putstatic", field)
+
+    def get_field(self, field: FieldReference) -> 'Instructions':
+        return self.append("getfield", field)
+
+    def put_field(self, field: FieldReference) -> 'Instructions':
+        return self.append("putfield", field)
+
+    # </editor-fold>
