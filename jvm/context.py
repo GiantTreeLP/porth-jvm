@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
-from jawa.cf import ClassFile
 from jawa.constants import MethodReference, FieldReference
 
+from extensions.DeduplicatingClassFile import DeduplicatingClassFile
 from jvm.intrinsics.procedures import Procedure
 from porth.porth import Program
 
@@ -13,7 +13,7 @@ class GenerateContext:
     program_name: str
     procedures: dict[str, Procedure]
 
-    cf: ClassFile
+    cf: DeduplicatingClassFile
 
     clinit_method: MethodReference
     print_long_method: MethodReference

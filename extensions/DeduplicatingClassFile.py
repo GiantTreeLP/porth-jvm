@@ -21,3 +21,7 @@ class DeduplicatingClassFile(ClassFile):
         cf.super_ = cf.constants.create_class(super_)
 
         return cf
+
+    @property
+    def constants(self) -> DeduplicatingConstantPool:
+        return self._constants
