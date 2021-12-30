@@ -1380,27 +1380,27 @@ class Instructions(object):
 
     def push_constant(self, constant: Constant) -> 'Instructions':
         if constant.index <= 255:
-            self._instructions.append(("ldc", constant))
+            self.append("ldc", constant)
         else:
-            self._instructions.append(("ldc_w", constant))
+            self.append("ldc_w", constant)
         return self
 
     def push_long(self, long: int) -> 'Instructions':
         if long == 0:
-            self._instructions.append(("lconst_0",))
+            self.append("lconst_0")
         elif long == 1:
-            self._instructions.append(("lconst_1",))
+            self.append("lconst_1")
         elif long in range(-128, 128):
-            self._instructions.append(("bipush", long), )
-            self._instructions.append(("i2l",))
+            self.append("bipush", long)
+            self.append("i2l")
         elif long in range(-32768, 32768):
-            self._instructions.append(("sipush", long), )
-            self._instructions.append(("i2l",))
+            self.append("sipush", long)
+            self.append("i2l")
         elif long in range(-2147483648, 2147483648):
             self.push_constant(self._context.cf.constants.create_integer(long))
-            self._instructions.append(("i2l",))
+            self.append("i2l")
         elif long in range(-9223372036854775808, 9223372036854775808):
-            self._instructions.append(("ldc2_w", self._context.cf.constants.create_long(long)))
+            self.append("ldc2_w", self._context.cf.constants.create_long(long))
         else:
             raise ValueError(f"{long} greater than MAX_LONG")
         return self
@@ -1409,17 +1409,17 @@ class Instructions(object):
         if integer < -32768:
             self.push_constant(self._context.cf.constants.create_integer(integer))
         elif integer < -128:
-            self._instructions.append(("sipush", integer), )
+            self.append("sipush", integer)
         elif integer < -1:
-            self._instructions.append(("bipush", integer), )
+            self.append("bipush", integer)
         elif integer == -1:
-            self._instructions.append(("iconst_m1",))
+            self.append("iconst_m1")
         elif integer <= 5:
-            self._instructions.append((f"iconst_{integer}",))
+            self.append(f"iconst_{integer}")
         elif integer <= 127:
-            self._instructions.append(("bipush", integer), )
+            self.append("bipush", integer)
         elif integer <= 32767:
-            self._instructions.append(("sipush", integer), )
+            self.append("sipush", integer)
         elif integer <= 2147483647:
             self.push_constant(self._context.cf.constants.create_integer(integer))
         else:
@@ -2082,7 +2082,7 @@ class Instructions(object):
         if shift != 0:
             self.push_integer(shift).unsigned_shift_right_integer()
 
-        self.get_static_field(self._context.memory_ref).move_short_behind_long().store_array_byte()
+        self.get_static_field(self._context.memory_ref).duplicate_behind_top_2_of_stack().pop().store_array_byte()
         return self
 
     def array_copy(self) -> 'Instructions':
