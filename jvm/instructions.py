@@ -1333,8 +1333,10 @@ INSTRUCTIONS = dict(map(lambda item: (item[0], InstructionInfo(**item[1])), INST
 
 Instruction: TypeAlias = Union[Label, str]
 Operand: TypeAlias = Union[Label, Constant, int, Dict[int, Label]]
-InstructionsType: TypeAlias = Union[
-    Tuple[Instruction], Tuple[Instruction, Operand], Tuple[Instruction, Operand, Operand]]
+InstructionsType: TypeAlias = Union[Label,
+                                    Tuple[Instruction],
+                                    Tuple[Instruction, Operand],
+                                    Tuple[Instruction, Operand, Operand]]
 LabelType: TypeAlias = Union[str, Label]
 
 
@@ -1361,7 +1363,10 @@ class Instructions(object):
         return list(assemble(self._instructions))
 
     def append(self, instruction: Instruction, *operands: Operand) -> 'Instructions':
-        self._instructions.append((instruction, *operands))
+        if isinstance(instruction, Label):
+            self._instructions.append(instruction)
+        else:
+            self._instructions.append((instruction, *operands))
         return self
 
     def label(self, name: LabelType) -> 'Instructions':
@@ -1388,8 +1393,10 @@ class Instructions(object):
         elif long in range(-2147483648, 2147483648):
             self.push_constant(self._context.cf.constants.create_integer(long))
             self._instructions.append(("i2l",))
-        else:
+        elif long in range(-9223372036854775808, 9223372036854775808):
             self._instructions.append(("ldc2_w", self._context.cf.constants.create_long(long)))
+        else:
+            raise ValueError(f"{long} greater than MAX_LONG")
         return self
 
     def push_integer(self, integer: int) -> 'Instructions':
@@ -1403,11 +1410,11 @@ class Instructions(object):
             self._instructions.append(("iconst_m1",))
         elif integer <= 5:
             self._instructions.append((f"iconst_{integer}",))
-        elif integer in range(-128, 128):
+        elif integer <= 127:
             self._instructions.append(("bipush", integer), )
-        elif integer in range(-32768, 32768):
+        elif integer <= 32767:
             self._instructions.append(("sipush", integer), )
-        elif integer in range(-2147483648, 2147483648):
+        elif integer <= 2147483647:
             self.push_constant(self._context.cf.constants.create_integer(integer))
         else:
             raise ValueError(f"{integer} greater than MAX_INT")
@@ -1494,6 +1501,13 @@ class Instructions(object):
             return self.append(f"lstore_{index}")
         else:
             return self.append("lstore", index)
+
+    # </editor-fold>
+
+    # <editor-fold desc="Increments/Decrements" defaultstate="collapsed">
+
+    def increment_integer(self, index: int, value: int = 1) -> 'Instructions':
+        return self.append("iinc", index, value)
 
     # </editor-fold>
 
@@ -1639,10 +1653,10 @@ class Instructions(object):
     def duplicate_behind_top_2_of_stack(self) -> 'Instructions':
         return self.append("dup_x2")
 
-    def duplicate_behind_long(self) -> 'Instructions':
+    def duplicate_short_behind_long(self) -> 'Instructions':
         return self.duplicate_behind_top_2_of_stack()
 
-    def duplicate_behind_double(self) -> 'Instructions':
+    def duplicate_short_behind_double(self) -> 'Instructions':
         return self.duplicate_behind_top_2_of_stack()
 
     def duplicate_top_2_behind_top_3_of_stack(self) -> 'Instructions':
@@ -1688,7 +1702,7 @@ class Instructions(object):
         return self.duplicate_double_behind_double().drop_double()
 
     def swap_long_with_short(self) -> 'Instructions':
-        return self.duplicate_behind_long().drop_long()
+        return self.duplicate_short_behind_long().drop_long()
 
     def swap_short_with_long(self) -> 'Instructions':
         return self.duplicate_long_behind_short().drop()
@@ -1873,7 +1887,8 @@ class Instructions(object):
 
     # </editor-fold>
 
-    # <editor-fold desc="Comparison (against 0, from lcmp, dcmpg or fcmpg or directly to an int or boolean)" defaultstate="collapsed">
+    # <editor-fold desc="Comparison (against 0, from lcmp, dcmpg or fcmpg or directly to an int or boolean)"
+    # defaultstate="collapsed">
     def branch_if_less(self, label: LabelType) -> 'Instructions':
         return self._branch("iflt", label)
 
@@ -1940,7 +1955,7 @@ class Instructions(object):
     def lookup_switch(self, default: LabelType, branch_pairs: Dict[int, LabelType]) -> 'Instructions':
         default = Instructions._map_label(default)
         branch_pairs = {int(k): Instructions._map_label(v) for k, v in branch_pairs.items()}
-        return self.append("lookupswitch", default, branch_pairs)
+        return self.append("lookupswitch", branch_pairs, default)
 
     def table_switch(self, default: LabelType, low: int, high: int, labels: Iterable[LabelType]) -> 'Instructions':
         default = Instructions._map_label(default)
@@ -2001,13 +2016,23 @@ class Instructions(object):
         return self.append("invokespecial", method)
 
     def invoke_interface(self, method: InterfaceMethodRef) -> 'Instructions':
-        return self.append("invokeinterface", method)
+        return self.append("invokeinterface", method, 1, 0)
 
     def invoke_native(self, method: MethodReference) -> 'Instructions':
         return self.append("invokenative", method)
 
     def invoke_dynamic(self, method: InvokeDynamic) -> 'Instructions':
         return self.append("invokedynamic", method, 0, 0)
+
+    # </editor-fold>
+
+    # <editor-fold desc="References" defaultstate="collapsed">
+
+    def new(self, class_: ConstantClass) -> 'Instructions':
+        return self.append("new", class_)
+
+    def check_cast(self, class_: ConstantClass) -> 'Instructions':
+        return self.append("checkcast", class_)
 
     # </editor-fold>
 
@@ -2043,5 +2068,24 @@ class Instructions(object):
         if shift != 0:
             self.push_integer(shift).shift_left_long()
         return self
+
+    def store_byte(self, index: int) -> 'Instructions':
+        shift = index * 8
+        if index != 0:
+            self.swap().push_integer(index).add_integer().swap()
+        if shift != 0:
+            self.push_integer(shift).unsigned_shift_right_integer()
+
+        self.get_static_field(self._context.memory_ref).duplicate_behind_top_2_of_stack().pop().store_array_byte()
+        return self
+
+    def array_copy(self) -> 'Instructions':
+        return self.invoke_static(
+            self._context.cf.constants.create_method_ref(
+                "java/lang/System",
+                "arraycopy",
+                "(Ljava/lang/Object;ILjava/lang/Object;II)V"
+            )
+        )
 
     # </editor-fold>
