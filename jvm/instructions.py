@@ -1701,11 +1701,11 @@ class Instructions(object):
     def swap_doubles(self) -> 'Instructions':
         return self.duplicate_double_behind_double().drop_double()
 
-    def swap_long_with_short(self) -> 'Instructions':
-        return self.duplicate_short_behind_long().drop_long()
+    def move_short_behind_long(self) -> 'Instructions':
+        return self.duplicate_short_behind_long().pop()
 
-    def swap_short_with_long(self) -> 'Instructions':
-        return self.duplicate_long_behind_short().drop()
+    def move_long_behind_short(self) -> 'Instructions':
+        return self.duplicate_long_behind_short().drop_long()
 
     # </editor-fold>
 
@@ -2076,7 +2076,7 @@ class Instructions(object):
         if shift != 0:
             self.push_integer(shift).unsigned_shift_right_integer()
 
-        self.get_static_field(self._context.memory_ref).duplicate_behind_top_2_of_stack().pop().store_array_byte()
+        self.get_static_field(self._context.memory_ref).move_short_behind_long().store_array_byte()
         return self
 
     def array_copy(self) -> 'Instructions':
