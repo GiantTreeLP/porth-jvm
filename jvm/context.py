@@ -15,7 +15,6 @@ class GenerateContext:
 
     cf: DeduplicatingClassFile
 
-    clinit_method: MethodReference
     print_long_method: MethodReference
     prepare_argv_method: MethodReference
     prepare_envp_method: MethodReference

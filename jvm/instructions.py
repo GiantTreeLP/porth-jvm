@@ -56,10 +56,13 @@ def get_method_input_types(method_reference: MethodReference) -> List[OperandTyp
 
     types = []
 
-    i = 1
+    i = 0
 
     while i < len(descriptor):
-        if descriptor[i] == ')':
+        if descriptor[i] == '(':
+            i += 1
+            continue
+        elif descriptor[i] == ')':
             break
         elif descriptor[i] == 'L':
             types.append(Reference)
@@ -1330,6 +1333,7 @@ INSTRUCTIONS: Dict[int, InstructionInfo] = {
 # </editor-fold>
 
 INSTRUCTIONS = dict(map(lambda item: (item[0], InstructionInfo(**item[1])), INSTRUCTIONS.items()))
+INSTRUCTIONS_BY_NAME: Dict[str, InstructionInfo] = dict(map(lambda item: (item[1].name, item[1]), INSTRUCTIONS.items()))
 
 Instruction: TypeAlias = Union[Label, str]
 Operand: TypeAlias = Union[Label, Constant, int, Dict[int, Label]]
@@ -1343,9 +1347,11 @@ LabelType: TypeAlias = Union[str, Label]
 class Instructions(object):
     _context: GenerateContext
     _instructions: Deque[InstructionsType]
+    _stack: Deque[OperandType]
 
     def __init__(self, context: GenerateContext):
         self._instructions = deque()
+        self._stack = deque()
         self._context = context
 
     @property

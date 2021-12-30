@@ -155,9 +155,6 @@ def add_utility_methods(context: GenerateContext):
                                                                      syscall3_method.descriptor.value)
     create_method_direct(context, syscall3_method, syscall3_method_instructions(context))
     clinit_method = create_method_prototype(context.cf, "<clinit>", "()V")
-    context.clinit_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
-                                                                   clinit_method.name.value,
-                                                                   clinit_method.descriptor.value)
     create_method_direct(context, clinit_method, clinit_method_instructions(context))
 
 
