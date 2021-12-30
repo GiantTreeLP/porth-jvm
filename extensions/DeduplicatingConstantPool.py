@@ -1,17 +1,8 @@
 from typing import Callable, Tuple, Any, Union
 
 from jawa.constants import ConstantPool, InterfaceMethodRef, MethodReference, FieldReference, NameAndType, String, \
-    ConstantClass, Double, Long, Float, Integer, _constant_types, Constant, UTF8, Module, InvokeDynamic, PackageInfo
-
-KIND_GET_FIELD = 1
-KIND_GET_STATIC = 2
-KIND_PUT_FIELD = 3
-KIND_PUT_STATIC = 4
-KIND_INVOKE_VIRTUAL = 5
-KIND_INVOKE_STATIC = 6
-KIND_INVOKE_SPECIAL = 7
-KIND_NEW_INVOKE_SPECIAL = 8
-KIND_INVOKE_INTERFACE = 9
+    ConstantClass, Double, Long, Float, Integer, _constant_types, Constant, UTF8, Module, InvokeDynamic, PackageInfo, \
+    MethodHandle, MethodType, MethodHandleKind
 
 
 class DeduplicatingConstantPool(ConstantPool):
@@ -110,14 +101,14 @@ class DeduplicatingConstantPool(ConstantPool):
             self.create_name_and_type(if_method, descriptor).index
         ))[0]
 
-    def create_method_handle(self, kind: int, class_: str, method: str, descriptor: str) -> Any:
+    def create_method_handle(self, kind: MethodHandleKind, class_: str, method: str, descriptor: str) -> MethodHandle:
         return self.append((
             15,
             kind,
             self.create_method_ref(class_, method, descriptor).index
         ))[0]
 
-    def create_method_type(self, descriptor: str) -> Any:
+    def create_method_type(self, descriptor: str) -> MethodType:
         return self.append((
             16,
             self.create_utf8(descriptor).index
