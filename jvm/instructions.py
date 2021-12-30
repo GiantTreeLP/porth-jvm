@@ -1,8 +1,8 @@
 from collections import deque
 from typing import NamedTuple, List, Dict, Union, Callable, Deque, Tuple, TypeAlias, Iterable
 
-from jawa.assemble import assemble, Label
-from jawa.constants import FieldReference, MethodReference, Constant, ConstantClass
+from jawa.assemble import assemble, Label, Instruction as AssemblyInstruction
+from jawa.constants import FieldReference, MethodReference, Constant, ConstantClass, InvokeDynamic, InterfaceMethodRef
 
 from jvm.context import GenerateContext
 
@@ -1357,8 +1357,8 @@ class Instructions(object):
         else:
             return Label(label)
 
-    def assemble(self):
-        return assemble(self._instructions)
+    def assemble(self) -> List[AssemblyInstruction]:
+        return list(assemble(self._instructions))
 
     def append(self, instruction: Instruction, *operands: Operand) -> 'Instructions':
         self._instructions.append((instruction, *operands))
@@ -1648,10 +1648,10 @@ class Instructions(object):
     def duplicate_top_2_behind_top_3_of_stack(self) -> 'Instructions':
         return self.append("dup2_x1")
 
-    def duplicate_long_behind_top_2_of_stack(self) -> 'Instructions':
+    def duplicate_long_behind_short(self) -> 'Instructions':
         return self.duplicate_top_2_behind_top_3_of_stack()
 
-    def duplicate_double_behind_top_2_of_stack(self) -> 'Instructions':
+    def duplicate_double_behind_short(self) -> 'Instructions':
         return self.duplicate_top_2_behind_top_3_of_stack()
 
     def duplicate_top_2_behind_top_4_of_stack(self) -> 'Instructions':
@@ -1686,6 +1686,12 @@ class Instructions(object):
 
     def swap_doubles(self) -> 'Instructions':
         return self.duplicate_double_behind_double().drop_double()
+
+    def swap_long_with_short(self) -> 'Instructions':
+        return self.duplicate_behind_long().drop_long()
+
+    def swap_short_with_long(self) -> 'Instructions':
+        return self.duplicate_long_behind_short().drop()
 
     # </editor-fold>
 
@@ -1980,5 +1986,62 @@ class Instructions(object):
 
     def put_field(self, field: FieldReference) -> 'Instructions':
         return self.append("putfield", field)
+
+    # </editor-fold>
+
+    # <editor-fold desc="Invocations" defaultstate="collapsed">
+
+    def invoke_static(self, method: MethodReference) -> 'Instructions':
+        return self.append("invokestatic", method)
+
+    def invoke_virtual(self, method: MethodReference) -> 'Instructions':
+        return self.append("invokevirtual", method)
+
+    def invoke_special(self, method: MethodReference) -> 'Instructions':
+        return self.append("invokespecial", method)
+
+    def invoke_interface(self, method: InterfaceMethodRef) -> 'Instructions':
+        return self.append("invokeinterface", method)
+
+    def invoke_native(self, method: MethodReference) -> 'Instructions':
+        return self.append("invokenative", method)
+
+    def invoke_dynamic(self, method: InvokeDynamic) -> 'Instructions':
+        return self.append("invokedynamic", method, 0, 0)
+
+    # </editor-fold>
+
+    # <editor-fold desc="Convenience functions" defaultstate="collapsed">
+
+    def load_byte(self, index: int) -> 'Instructions':
+        shift = index * 8
+        if shift != 0:
+            self.push_integer(shift).add_integer()
+
+        self.get_static_field(self._context.memory_ref)
+        self.swap()
+        self.load_array_byte()
+        self.push_integer(0xff)
+        self.and_integer()
+
+        if shift != 0:
+            self.push_integer(shift).shift_left_integer()
+        return self
+
+    def load_byte_wide(self, index: int) -> 'Instructions':
+        shift = index * 8
+        if shift != 0:
+            self.push_integer(shift).add_integer()
+
+        self.get_static_field(self._context.memory_ref)
+        self.swap()
+        self.load_array_byte()
+        self.convert_integer_to_long()
+        self.push_long(0xff)
+        self.and_long()
+
+        if shift != 0:
+            self.push_integer(shift).shift_left_long()
+        return self
 
     # </editor-fold>
