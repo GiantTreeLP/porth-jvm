@@ -12,4 +12,3 @@ class Procedure:
     local_memory: int
     method_ref: MethodReference
     contract: Contract
-    call_sites: list[Optional[str]] = field(default_factory=list)

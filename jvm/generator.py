@@ -1,7 +1,7 @@
 import random
-from collections import deque
+from collections import deque, OrderedDict
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Set, List
 
 from jawa.assemble import assemble, Label
 from jawa.attributes.line_number_table import LineNumberTableAttribute, line_number_entry
@@ -55,7 +55,7 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
 
     add_utility_methods(context)
 
-    called_procedures = scan_called_procedures(parse_context, None)
+    called_procedures = scan_called_procedures(parse_context)
 
     for name in called_procedures:
         procedure = parse_context.procs[name]
@@ -289,10 +289,6 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
             assert isinstance(op.operand, OpAddr), f"This could be a bug in the parsing step: {op.operand}"
 
             proc = context.procedures[op.token.value]
-            if current_proc:
-                proc.call_sites.append(method.name.value)
-            else:
-                proc.call_sites.append(None)
             instructions.append(("invokestatic", proc.method_ref))
 
             if len(proc.contract.outs) > 1:
@@ -561,21 +557,28 @@ def make_signature(contract):
 
 def scan_called_procedures(
         context: ParseContext,
-        procedure: Optional[Proc] = None,
-        state: Optional[set[str]] = None
-) -> set[str]:
-    called_procedures: set[str] = set() if state is None else state
-    current_proc: Optional[OpAddr] = None
-    for ip, op in enumerate(context.ops if procedure is None else context.ops[procedure.addr:]):
-        if current_proc is not None and op.typ != OpType.RET:
-            continue
+) -> List[str]:
+    procedures_by_addr: Dict[OpAddr, str] = dict(map(lambda item: (item[1].addr, item[0]), context.procs.items()))
+    called_procedures: OrderedDict[str, Set[str]] = OrderedDict()
+    current_proc: Optional[str] = None
+
+    for ip, op in enumerate(context.ops):
         if op.typ == OpType.SKIP_PROC:
-            current_proc = ip + 1
-        elif op.typ == OpType.CALL:
-            if op.token.value not in called_procedures:
-                called_procedures.add(op.token.value)
-                called_procedures.union(
-                    scan_called_procedures(context, context.procs[op.token.value], called_procedures))
+            current_proc = procedures_by_addr[ip + 1]
+            assert current_proc is not None
+            called_procedures[current_proc] = set()
         elif op.typ == OpType.RET:
             current_proc = None
-    return called_procedures
+        elif op.typ == OpType.CALL:
+            called_procedures[op.token.value].add(current_proc)
+
+    while any(len(called_procedures[proc]) == 0 for proc in called_procedures):
+        for proc in list(called_procedures.keys()):
+            if len(called_procedures[proc]) == 0:
+                for called_proc in called_procedures:
+                    call_sites = called_procedures[called_proc]
+                    if proc in call_sites:
+                        call_sites.remove(proc)
+                called_procedures.pop(proc)
+
+    return list(called_procedures.keys())
