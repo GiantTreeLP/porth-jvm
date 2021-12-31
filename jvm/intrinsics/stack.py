@@ -731,9 +731,15 @@ INSTRUCTION_TO_STACK_MODIFICATION: Dict[
 
 class Stack(object):
     _stack: OperandStack
+    _max_stack_size: int
 
     def __init__(self):
         self._stack = deque()
+        self._max_stack_size = 0
+
+    @property
+    def max_stack_size(self) -> int:
+        return self._max_stack_size
 
     def update_stack(self, instruction: Instruction, *operands: Operand):
         if instruction in INSTRUCTION_TO_STACK_MODIFICATION:
@@ -743,5 +749,10 @@ class Stack(object):
                 stack_modification(self._stack)
             elif len(arg_spec.args) == 2:
                 stack_modification(self._stack, operands)
+            else:
+                raise Exception("Unsupported stack modification")
+            # Update max stack size
+            self._max_stack_size = max(self._max_stack_size,
+                                       sum(map(lambda op: op.size, self._stack)))
         else:
             raise NotImplementedError(f"No stack modification for instruction {instruction}!")

@@ -1277,6 +1277,10 @@ class Instructions(object):
     def instructions(self):
         return self._instructions.copy()
 
+    @property
+    def stack(self):
+        return self._stack
+
     @staticmethod
     def _map_label(label: LabelType) -> Label:
         if isinstance(label, Label):
