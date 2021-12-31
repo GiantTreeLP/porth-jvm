@@ -427,10 +427,10 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
                 instructions.append(("invokestatic", context.store_64_method))
             elif op.operand == Intrinsic.ARGC:
                 instructions.append(("getstatic", context.argc_ref))
-                # instructions.append(("invokestatic", context.load_64_method))
+                instructions.append(("invokestatic", context.load_64_method))
             elif op.operand == Intrinsic.ARGV:
                 instructions.append(("getstatic", context.argv_ref))
-                # instructions.append(("invokestatic", context.load_64_method))
+                instructions.append(("invokestatic", context.load_64_method))
             elif op.operand == Intrinsic.ENVP:
                 instructions.append(("getstatic", context.envp_ref))
                 pass
