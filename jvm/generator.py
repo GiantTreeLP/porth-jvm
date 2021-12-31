@@ -14,6 +14,7 @@ from jvm.commons import count_locals, push_long, push_int, string_get_bytes, \
     print_long_method_instructions, push_constant, calculate_max_stack
 from jvm.context import GenerateContext
 from jvm.instructions import Instructions
+from jvm.intrinsics import get_method_input_types
 from jvm.intrinsics.args import prepare_argv_method_instructions, prepare_envp_method_instructions
 from jvm.intrinsics.init import clinit_method_instructions
 from jvm.intrinsics.load import load_64_method_instructions, \
@@ -542,7 +543,8 @@ def create_method_direct(context: GenerateContext, method: Method,
                          instructions: Instructions):
     assembly = instructions.assemble()
     method.code.assemble(assembly)
-    method.code.max_locals = count_locals(method.descriptor.value, instructions.instructions)
+    input_variable_count = sum(map(lambda op: op.size, get_method_input_types(method)))
+    method.code.max_locals = max(input_variable_count, instructions.stack.local_count)
     method.code.max_stack = instructions.stack.max_stack_size
 
 
