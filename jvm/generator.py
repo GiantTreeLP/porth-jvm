@@ -13,11 +13,12 @@ from extensions.DeduplicatingClassFile import DeduplicatingClassFile
 from jvm.commons import count_locals, push_long, push_int, string_get_bytes, \
     print_long_method_instructions, push_constant, calculate_max_stack
 from jvm.context import GenerateContext
+from jvm.instructions import Instructions
 from jvm.intrinsics.args import prepare_argv_method_instructions, prepare_envp_method_instructions
 from jvm.intrinsics.init import clinit_method_instructions
 from jvm.intrinsics.load import load_64_method_instructions, \
     load_32_method_instructions, load_16_method_instructions, load_8_method_instructions
-from jvm.intrinsics.memory import extend_mem_method_instructions, put_string_method_instructions
+from jvm.intrinsics.memory import extend_mem_method_instructions, put_string_method_instructions, print_memory
 from jvm.intrinsics.procedures import Procedure
 from jvm.intrinsics.store import store_32, store_16, store_8, store_64_method_instructions
 from jvm.intrinsics.syscalls import syscall3_method_instructions
@@ -66,12 +67,12 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
                                                                             method.name.value,
                                                                             method.descriptor.value),
                                              procedure.contract)
-        create_method(context, method, procedure, program.ops[procedure.addr:])
         line_numbers: LineNumberTableAttribute = method.code.attributes.create(LineNumberTableAttribute)
-
         line_numbers.line_no = [
             line_number_entry(0, program.ops[procedure.addr].token.loc[1]),
         ]
+        create_method(context, method, procedure, program.ops[procedure.addr:])
+
 
     create_method(context, main_method, None, program.ops)
 
@@ -103,7 +104,7 @@ def add_utility_methods(context: GenerateContext):
     context.print_long_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
                                                                        print_long_method.name.value,
                                                                        print_long_method.descriptor.value)
-    create_method_direct(context, print_long_method, print_long_method_instructions(context.cf))
+    create_method_direct(context, print_long_method, print_long_method_instructions(context))
     load_64_method = create_method_prototype(context.cf, "load_64", "(J)J")
     context.load_64_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
                                                                     load_64_method.name.value,
@@ -542,11 +543,11 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
 
 
 def create_method_direct(context: GenerateContext, method: Method,
-                         instructions: Iterable[Union[Label, tuple]]):
-    assembly = list(assemble(instructions))
+                         instructions: Instructions):
+    assembly = instructions.assemble()
     method.code.assemble(assembly)
-    method.code.max_locals = count_locals(method.descriptor.value, instructions)
-    method.code.max_stack = calculate_max_stack(context, assembly)
+    method.code.max_locals = count_locals(method.descriptor.value, instructions.instructions)
+    method.code.max_stack = instructions.stack.max_stack_size
 
 
 def make_signature(contract):

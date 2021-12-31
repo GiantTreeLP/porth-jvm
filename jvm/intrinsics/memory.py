@@ -1,150 +1,98 @@
-from collections import deque
 from typing import MutableSequence
 
 from jawa.assemble import Label
 
-from jvm.commons import push_int, system_arraycopy, string_get_bytes, print_string, push_constant, print_long, \
+from jvm.commons import push_int, print_string, push_constant, print_long, \
     LONG_SIZE
 from jvm.context import GenerateContext
+from jvm.instructions import Instructions
+from jvm.intrinsics import OperandType
 
 
-def increase_mem_capacity(context: GenerateContext, instructions: MutableSequence):
-    instructions.append(("getstatic", context.memory_ref))
-    # Stack: memory
-    instructions.append(("arraylength",))
-    # Stack: memory size
-    instructions.append(("dup",))
-    # Stack: memory size, memory size
-    instructions.append(("iload_0",))
-    # Stack: memory size, memory size, additional size
-    instructions.append(("iadd",))
-    # Stack: memory size, memory size + additional size
-    instructions.append(("newarray", 8))  # byte array
-    # Stack: new memory pointer, new array
-    instructions.append(("dup",))
-    # Stack: new memory pointer, new array, new array
-    instructions.append(("getstatic", context.memory_ref))
-    # Stack: new memory pointer, new array, new array, memory
-    instructions.append(("swap",))
-    # Stack: new memory pointer, new array, memory, new array
-    push_int(context.cf, instructions, 0)
-    # Stack: new memory pointer, new array, memory, new array, 0
-    instructions.append(("swap",))
-    # Stack: new memory pointer, new array, memory, 0, new array
-    push_int(context.cf, instructions, 0)
-    # Stack: new memory pointer, new array, memory, 0, new array, 0
-    instructions.append(("getstatic", context.memory_ref))
-    # Stack: new memory pointer, new array, memory, 0, new array, 0, memory
-    instructions.append(("arraylength",))
-    # Stack: new memory pointer, new array, memory, 0, new array, 0, memory capacity
-    instructions.append(("dup",))
-    # Stack: new memory pointer, new array, memory, 0, new array, 0, memory capacity, memory capacity
-    instructions.append(("iload_0",))
-    # Stack: new memory pointer, new array, memory, 0, new array, 0, memory capacity, memory capacity, additional size
-    instructions.append(("iadd",))
-    # Stack: new memory pointer, new array, memory, 0, new array, 0, memory capacity, memory capacity + additional size
-    instructions.append(("invokestatic", context.cf.constants.create_method_ref("java/lang/Math", "min", "(II)I")))
-    # Stack: new memory pointer, new array, memory, 0, new array, 0, min(memory capacity + additional size, memory capacity)
-    system_arraycopy(context.cf, instructions)
-    # Stack: new memory pointer, new array
-    instructions.append(("putstatic", context.memory_ref))
-    # Stack: new memory pointer
-    instructions.append(("i2l",))
-    # Stack: new memory pointer (as long)
-    instructions.append(("lreturn",))
+def extend_mem_method_instructions(context: GenerateContext) -> Instructions:
+    return (
+        Instructions(context)
+        .get_static_field(context.memory_ref)
+        .array_length()
+        .duplicate_top_of_stack()
+        .load_integer(0)
+        .add_integer()
+        .new_array(OperandType.Byte.array_type)
+        .duplicate_top_of_stack()
+        .get_static_field(context.memory_ref)
+        .swap()
+        .push_integer(0)
+        .swap()
+        .push_integer(0)
+        .get_static_field(context.memory_ref)
+        .array_length()
+        .duplicate_top_of_stack()
+        .push_integer(0)
+        .add_integer()
+        .invoke_static(context.cf.constants.create_method_ref("java/lang/Math", "min", "(II)I"))
+        .array_copy()
+        .put_static_field(context.memory_ref)
+        .convert_integer_to_long()
+        .return_long()
+    )
 
 
-def extend_mem_method_instructions(context: GenerateContext):
-    instructions = deque()
-
-    increase_mem_capacity(context, instructions)
-
-    return instructions
-
-
-def put_string(context: GenerateContext, instructions: MutableSequence):
-    instructions.append(("aload_0",))
-    # Stack: string
-    string_get_bytes(context.cf, instructions)
-    # Stack: bytes
-    instructions.append(("dup",))
-    # Stack: bytes, bytes
-    instructions.append(("arraylength",))
-    # Stack: bytes, string length
-    instructions.append(("dup",))
-    # Stack: bytes, string length, string length
-    instructions.append(("invokestatic", context.extend_mem_method))
-    # Stack: bytes, string length, insertion index (as long)
-    instructions.append(("l2i",))
-    # Stack: bytes, string length, insertion index
-    instructions.append(("dup_x2",))
-    # Stack: insertion index, bytes, string length, insertion index
-    instructions.append(("swap",))
-    # Stack: insertion index, bytes, insertion index, string length
-    push_int(context.cf, instructions, 0)
-    # Stack: insertion index, bytes, insertion index, string length, 0
-    instructions.append(("dup_x2",))
-    # Stack: insertion index, bytes, 0, insertion index, string length, 0
-    instructions.append(("pop",))
-    # Stack: insertion index, bytes, 0, insertion index, string length
-    instructions.append(("getstatic", context.memory_ref))
-    # Stack: insertion index, bytes, 0, insertion index, string length, memory
-    instructions.append(("dup_x2",))
-    # Stack: insertion index, bytes, 0, memory, insertion index, string length, memory
-    instructions.append(("pop",))
-    # Stack: insertion index, bytes, 0, memory, insertion index, string length
-    system_arraycopy(context.cf, instructions)
-    # Stack: insertion index
-    instructions.append(("i2l",))
-    # Stack: insertion index (as long)
-
-
-def put_string_method_instructions(context: GenerateContext):
-    instructions = deque()
-
-    put_string(context, instructions)
-    instructions.append(("lreturn",))
-
-    return instructions
+def put_string_method_instructions(context: GenerateContext) -> Instructions:
+    return (
+        Instructions(context)
+        .load_reference(0)
+        .invoke_virtual(context.cf.constants.create_method_ref(
+            "java/lang/String",
+            "getBytes",
+            "()[B"
+        ))
+        .duplicate_top_of_stack()
+        .array_length()
+        .duplicate_top_of_stack()
+        .invoke_static(context.extend_mem_method)
+        .convert_long_to_integer()
+        .duplicate_behind_top_2_of_stack()
+        .swap()
+        .push_integer(0)
+        .duplicate_behind_top_2_of_stack()
+        .pop()
+        .get_static_field(context.memory_ref)
+        .duplicate_behind_top_2_of_stack()
+        .pop()
+        .array_copy()
+        .convert_integer_to_long()
+        .return_long()
+    )
 
 
 def cstrlen(context: GenerateContext, instructions: MutableSequence):
-    # Stack: cstr pointer (as long)
-    instructions.append(("l2i",))
     # Stack: cstr pointer
-    push_int(context.cf, instructions, 0)
-    # Stack: cstr pointer, counter
-    instructions.append(("swap",))
-    # Stack: counter, cstr pointer
-    instructions.append(Label("cstr_loop"))
-    instructions.append(("dup",))
-    # Stack: counter, cstr pointer, cstr pointer
-    instructions.append(("i2l",))
-    # Stack: counter, cstr pointer, cstr pointer (as long)
-    instructions.append(("invokestatic", context.load_8_method))
-    # Stack: counter, cstr pointer, cstr byte
     instructions.append(("l2i",))
-    # Stack: counter, cstr pointer, cstr byte (as int)
-    instructions.append(("ifeq", Label("cstr_loop_end")))
-    # Stack: counter, cstr pointer
+    # Stack: cstr pointer (as int)
+    instructions.append(("dup",))
+    # Stack: cstr pointer, cstr pointer
+    instructions.append(Label("cstrlen_loop"))
+    instructions.append(("dup",))
+    # Stack: cstr pointer, cstr pointer, cstr pointer
+    instructions.append(("i2l",))
+    # Stack: cstr pointer, cstr pointer, cstr pointer (as long)
+    instructions.append(("invokestatic", context.load_8_method))
+    # Stack: cstr pointer, cstr pointer, byte
+    instructions.append(("l2i",))
+    # Stack: cstr pointer, cstr pointer, byte (as int)
+    instructions.append(("ifeq", Label("cstrlen_loop_end")))
     push_int(context.cf, instructions, 1)
-    # Stack: counter, cstr pointer, 1
+    # Stack: cstr pointer, cstr pointer, 1
     instructions.append(("iadd",))
-    # Stack: counter, cstr pointer + 1
+    # Stack: cstr pointer, cstr pointer + 1
+    instructions.append(("goto", Label("cstrlen_loop")))
+    instructions.append(Label("cstrlen_loop_end"))
     instructions.append(("swap",))
-    # Stack: cstr pointer + 1, counter
-    push_int(context.cf, instructions, 1)
-    # Stack: cstr pointer + 1, counter, 1
-    instructions.append(("iadd",))
-    # Stack: cstr pointer + 1, counter + 1
-    instructions.append(("swap",))
-    # Stack: counter + 1, cstr pointer + 1
-    instructions.append(("goto", Label("cstr_loop")))
-
-    instructions.append(Label("cstr_loop_end"))
-    # Stack: counter, cstr pointer
-    instructions.append(("pop",))
-    # Stack: counter
+    # Stack: cstr pointer + 1, cstr pointer
+    instructions.append(("isub",))
+    # Stack: cstr length
+    instructions.append(("i2l",))
+    # Stack: cstr length (as long)
 
 
 def print_memory(context: GenerateContext, instructions: MutableSequence):
@@ -209,6 +157,8 @@ def print_memory(context: GenerateContext, instructions: MutableSequence):
     instructions.append(("imul",))
     # Stack: counter, counter * 8
     instructions.append(("getstatic", context.argv_ref))
+    # Stack: counter, counter * 8, argv pointer
+    instructions.append(("invokestatic", context.load_64_method))
     # Stack: counter, counter * 8, argv
     instructions.append(("l2i",))
     # Stack: counter, counter * 8, argv
@@ -222,7 +172,6 @@ def print_memory(context: GenerateContext, instructions: MutableSequence):
     # Stack: counter, arg pointer, arg pointer
     cstrlen(context, instructions)
     # Stack: counter, arg pointer, arg length
-    instructions.append(("i2l",))
     print_long(context.cf, instructions)
     instructions.append(("pop2",))
     push_int(context.cf, instructions, 1)

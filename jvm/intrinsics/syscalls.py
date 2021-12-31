@@ -1,152 +1,83 @@
-from collections import deque
-
 from jawa.assemble import Label
 
-from jvm.commons import push_int
 from jvm.context import GenerateContext
+from jvm.instructions import Instructions
 
 SYSCALL_READ = 0x0
 SYSCALL_WRITE = 0x1
 
 
 def syscall3_method_instructions(context: GenerateContext):
-    instructions = deque()
+    return (
+        Instructions(context)
+        .load_long(6)
+        .convert_long_to_integer()
+        .lookup_switch("exit0", {
+            SYSCALL_READ: Label("read"),
+            SYSCALL_WRITE: Label("write"),
+        })
+        .label("read")
+        .load_long(4)
+        .convert_long_to_integer()
+        .get_static_field(context.fd_ref)
+        .swap()
+        .load_array_reference()
+        .new(context.cf.constants.create_class("java/io/FileInputStream"))
+        .duplicate_behind_top_of_stack()
+        .duplicate_behind_top_of_stack()
+        .pop()
+        .invoke_special(context.cf.constants.create_method_ref("java/io/FileInputStream",
+                                                               "<init>",
+                                                               "(Ljava/io/FileDescriptor;)V"))
+        .get_static_field(context.memory_ref)
+        .load_long(2)
+        .convert_long_to_integer()
+        .load_long(0)
+        .convert_long_to_integer()
+        .invoke_virtual(context.cf.constants.create_method_ref("java/io/FileInputStream",
+                                                               "read",
+                                                               "([BII)I"))
+        .duplicate_top_of_stack()
+        .push_integer(-1)
+        .branch_if_integer_not_equal("read_return_value")  # if read() != -1, goto read_return_value
+        .push_integer(0)
+        .swap()
+        .pop()
+        .label("read_return_value")
+        .convert_integer_to_long()
+        .branch("exit")
 
-    instructions.append(("lload", 6))
-    instructions.append(("l2i",))
-    # Stack: syscall id
-    instructions.append(("lookupswitch", {
-        SYSCALL_READ: Label("read"),
-        SYSCALL_WRITE: Label("write"),
-    }, Label("exit0")))
+        .label("write")
+        .load_long(4)
+        .convert_long_to_integer()
+        .get_static_field(context.fd_ref)
+        .swap()
+        .load_array_reference()
+        .new(context.cf.constants.create_class("java/io/FileOutputStream"))
+        .duplicate_behind_top_of_stack()
+        .duplicate_behind_top_of_stack()
+        .pop()
+        .invoke_special(context.cf.constants.create_method_ref("java/io/FileOutputStream",
+                                                               "<init>",
+                                                               "(Ljava/io/FileDescriptor;)V"))
+        .duplicate_top_of_stack()
+        .get_static_field(context.memory_ref)
+        .load_long(2)
+        .convert_long_to_integer()
+        .load_long(0)
+        .convert_long_to_integer()
+        .invoke_virtual(context.cf.constants.create_method_ref("java/io/OutputStream",
+                                                               "write",
+                                                               "([BII)V"))
+        .invoke_virtual(context.cf.constants.create_method_ref("java/io/OutputStream",
+                                                               "flush",
+                                                               "()V"))
+        .load_long(0)
+        .branch("exit")
 
-    # region: read
-    instructions.append(Label("read"))
+        .label("exit0")
+        .push_long(0)
 
-    instructions.append(("lload", 4))
-    # Stack: fd
-    instructions.append(("l2i",))
-    # Stack: fd
-
-    instructions.append(("getstatic", context.fd_ref))
-    # Stack: fd, fd_ref
-    instructions.append(("swap",))
-    # Stack: fd_ref, fd
-    instructions.append(("aaload",))
-    # Stack: file descriptor
-    instructions.append(("new", context.cf.constants.create_class("java/io/FileInputStream")))
-    # Stack: file descriptor, FileOutputStream
-    instructions.append(("dup_x1",))
-    # Stack: FileOutputStream, file descriptor, FileOutputStream
-    instructions.append(("dup_x1",))
-    # Stack: FileOutputStream, FileOutputStream, file descriptor, FileOutputStream
-    instructions.append(("pop",))
-    # Stack: FileOutputStream, FileOutputStream, file descriptor
-    instructions.append(("invokespecial", context.cf.constants.create_method_ref("java/io/FileInputStream", "<init>",
-                                                                                 "(Ljava/io/FileDescriptor;)V")))
-    # Stack: FileOutputStream
-
-    instructions.append(Label("read_printstream"))
-    instructions.append(("getstatic", context.memory_ref))
-    # Stack: string, string, memory
-    instructions.append(("lload_2",))
-    # Stack: string, string, memory, offset
-    instructions.append(("l2i",))
-    # Stack: string, string, memory, offset
-    instructions.append(("lload_0",))
-    # Stack: string, string, memory, offset, length
-    instructions.append(("l2i",))
-    # Stack: string, string, memory, offset, length
-
-    instructions.append(("invokevirtual", context.cf.constants.create_method_ref(
-        "java/io/InputStream",
-        "read",
-        "([BII)I"
-    )))
-    # Stack: read byte count
-
-    # Match the behavior of the JVM to the behavior of the kernel (i.e. return 0 on EOF)
-
-    instructions.append(("dup",))
-    # Stack: read byte count, read byte count
-    push_int(context.cf, instructions, -1)
-    # Stack: read byte count, read byte count, -1
-    instructions.append(("if_icmpne", Label("read_return_value")))
-    # Stack: read byte count
-    push_int(context.cf, instructions, 0)
-    instructions.append(("swap",))
-    # Stack: 0, read byte count
-    instructions.append(("pop",))
-
-    instructions.append(Label("read_return_value"))
-    instructions.append(("i2l",))
-
-    instructions.append(("goto", Label("exit")))
-    # endregion
-
-    # region: write
-    instructions.append(Label("write"))
-
-    instructions.append(("lload", 4))
-    # Stack: fd
-    instructions.append(("l2i",))
-    # Stack: fd
-
-    instructions.append(("getstatic", context.fd_ref))
-    # Stack: fd, fd_ref
-    instructions.append(("swap",))
-    # Stack: fd_ref, fd
-    instructions.append(("aaload",))
-    # Stack: file descriptor
-    instructions.append(("new", context.cf.constants.create_class("java/io/FileOutputStream")))
-    # Stack: file descriptor, FileOutputStream
-    instructions.append(("dup_x1",))
-    # Stack: FileOutputStream, file descriptor, FileOutputStream
-    instructions.append(("dup_x1",))
-    # Stack: FileOutputStream, FileOutputStream, file descriptor, FileOutputStream
-    instructions.append(("pop",))
-    # Stack: FileOutputStream, FileOutputStream, file descriptor
-    instructions.append(("invokespecial", context.cf.constants.create_method_ref("java/io/FileOutputStream", "<init>",
-                                                                                 "(Ljava/io/FileDescriptor;)V")))
-    # Stack: FileOutputStream
-    instructions.append(("dup",))
-    # Stack: FileOutputStream, FileOutputStream
-
-    instructions.append(Label("write_printstream"))
-    instructions.append(("getstatic", context.memory_ref))
-    # Stack: FileOutputStream, FileOutputStream, string, string, memory
-    instructions.append(("lload_2",))
-    # Stack: FileOutputStream, FileOutputStream, string, string, memory, offset
-    instructions.append(("l2i",))
-    # Stack: FileOutputStream, FileOutputStream, string, string, memory, offset
-    instructions.append(("lload_0",))
-    # Stack: FileOutputStream, FileOutputStream, string, string, memory, offset, length
-    instructions.append(("l2i",))
-    # Stack: FileOutputStream, FileOutputStream, string, string, memory, offset, length
-
-    instructions.append(("invokevirtual", context.cf.constants.create_method_ref(
-        "java/io/OutputStream",
-        "write",
-        "([BII)V"
-    )))
-    # Stack: FileOutputStream
-    instructions.append(("invokevirtual", context.cf.constants.create_method_ref(
-        "java/io/OutputStream",
-        "flush",
-        "()V"
-    )))
-    # Stack: (empty)
-
-    instructions.append(("lload_0",))
-
-    instructions.append(("goto", Label("exit")))
-    # endregion
-
-    instructions.append(Label("exit0"))
-    instructions.append(("lconst_0",))
-
-    instructions.append(Label("exit"))
-
-    instructions.append(("lreturn",))
-
-    return instructions
+        .label("exit")
+        .return_long()
+    )

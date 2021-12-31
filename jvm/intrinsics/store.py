@@ -3,6 +3,7 @@ from typing import MutableSequence
 
 from jvm.commons import push_long, push_int
 from jvm.context import GenerateContext
+from jvm.instructions import Instructions
 
 
 def store_byte(context: GenerateContext, instructions: MutableSequence, index: int):
@@ -100,17 +101,43 @@ def store_64(context: GenerateContext, instructions: MutableSequence, local_vari
     # Stack: (empty)
 
 
-def store_64_method_instructions(context: GenerateContext):
-    instructions = deque()
-
-    instructions.append(("lload_0",))
-    instructions.append(("lload_2",))
-
-    store_64(context, instructions, 0)
-
-    instructions.append(("return",))
-
-    return instructions
+def store_64_method_instructions(context: GenerateContext) -> Instructions:
+    return (
+        Instructions(context)
+        .load_long(0)
+        .load_long(2)
+        .convert_long_to_integer()
+        .move_short_behind_long()
+        .store_long(2)
+        .duplicate_top_of_stack()
+        .load_long(2)
+        .push_long(0xffffffff)
+        .and_long()
+        .convert_long_to_integer()
+        .duplicate_top_2_of_stack()
+        .duplicate_top_2_of_stack()
+        .duplicate_top_2_of_stack()
+        .store_byte(0)
+        .store_byte(1)
+        .store_byte(2)
+        .store_byte(3)
+        .load_long(2)
+        .push_integer(32)
+        .unsigned_shift_right_long()
+        .convert_long_to_integer()
+        .swap()
+        .push_integer(4)
+        .add_integer()
+        .swap()
+        .duplicate_top_2_of_stack()
+        .duplicate_top_2_of_stack()
+        .duplicate_top_2_of_stack()
+        .store_byte(0)
+        .store_byte(1)
+        .store_byte(2)
+        .store_byte(3)
+        .return_void()
+    )
 
 
 def store_32(context: GenerateContext, instructions: MutableSequence):

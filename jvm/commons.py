@@ -1,13 +1,12 @@
 import inspect
-from collections import deque
 from typing import Iterable, MutableSequence
 
 from jawa.cf import ClassFile
-from jawa.constants import Constant, MethodReference, FieldReference
+from jawa.constants import Constant, MethodReference, FieldReference, InterfaceMethodRef
 from jawa.util.bytecode import Instruction
 
 from jvm.context import GenerateContext
-from jvm.instructions import INSTRUCTIONS, OperandType
+from jvm.instructions import INSTRUCTIONS, OperandType, Instructions
 
 LONG_SIZE = 8
 
@@ -22,35 +21,9 @@ def _print_boilerplate(cf: ClassFile, signature: str, fd: str):
             )),)
 
 
-def _write_boilerplate(cf: ClassFile, signature: str, fd: str):
-    return (("getstatic", (cf.constants.create_field_ref("java/lang/System", fd, "Ljava/io/PrintStream;"))),
-            ("swap",),
-            ("invokevirtual", cf.constants.create_method_ref(
-                "java/io/PrintStream",
-                "write",
-                signature
-            )),)
-
-
-def write_bytes_out(cf: ClassFile):
-    return _write_boilerplate(cf, "([BII)V", "out")
-
-
-def write_bytes_err(cf: ClassFile):
-    return _write_boilerplate(cf, "([BII)V", "err")
-
-
 def print_string(cf: ClassFile, instructions: MutableSequence):
     for ins in _print_boilerplate(cf, "(Ljava/lang/String;)V", "out"):
         instructions.append(ins)
-
-
-def print_string_err(cf: ClassFile):
-    return _print_boilerplate(cf, "(Ljava/lang/String;)V", "err")
-
-
-def print_int(cf: ClassFile):
-    return _print_boilerplate(cf, "(I)V", "out")
 
 
 def _print_boilerplate_wide(cf: ClassFile, signature: str):
@@ -69,17 +42,19 @@ def print_long(cf: ClassFile, instructions: MutableSequence):
         instructions.append(ins)
 
 
-def print_long_method_instructions(cf: ClassFile):
-    instructions = deque()
-
-    instructions.append(("lload_0",))
-    instructions.extend(_print_boilerplate_wide(cf, "(J)V"))
-    instructions.append(("return",))
-    return instructions
-
-
-def print_double(cf: ClassFile):
-    return _print_boilerplate_wide(cf, "(D)V")
+def print_long_method_instructions(context: GenerateContext) -> Instructions:
+    return (
+        Instructions(context)
+            .load_long(0)
+            .get_static_field(context.cf.constants.create_field_ref("java/lang/System", "out", "Ljava/io/PrintStream;"))
+            .move_short_behind_long()
+            .invoke_virtual(context.cf.constants.create_method_ref(
+            "java/io/PrintStream",
+            "println",
+            "(J)V"
+        ))
+            .return_void()
+    )
 
 
 def count_locals(descriptor: str, instructions: Iterable):
@@ -245,7 +220,7 @@ def push_constant(instructions: MutableSequence, constant: Constant):
 
 def calculate_max_stack(context: GenerateContext, instructions: Iterable[Instruction]) -> int:
     def sum_list_of_types(types: Iterable[OperandType]) -> int:
-        return sum(map(lambda t: t.size, types))
+        return sum(map(lambda t: t.size if t is not None else 0, types))
 
     running_maximum = 0
     current_size = 0
@@ -255,13 +230,16 @@ def calculate_max_stack(context: GenerateContext, instructions: Iterable[Instruc
         outputs = mapping.outputs
 
         if callable(outputs):
+            constant = context.cf.constants.get(instruction.operands[0].value)
             signature = inspect.signature(outputs)
             if len(signature.parameters) == 1:
                 first = next(iter(signature.parameters.values()))
-                if first.annotation == MethodReference:
-                    current_size += sum_list_of_types(outputs(context.cf.constants.get(instruction.operands[0].value)))
+                if first.annotation in (MethodReference, FieldReference, InterfaceMethodRef):
+                    current_size += sum_list_of_types(outputs(constant))
                 elif first.annotation == FieldReference:
-                    current_size += sum_list_of_types(outputs(context.cf.constants.get(instruction.operands[0].value)))
+                    current_size += sum_list_of_types(outputs(constant))
+                elif isinstance(constant, first.annotation.__args__):
+                    current_size += sum_list_of_types(outputs(constant))
                 else:
                     raise ValueError(f"Unknown annotation {first.annotation}")
             else:
@@ -272,13 +250,16 @@ def calculate_max_stack(context: GenerateContext, instructions: Iterable[Instruc
         inputs = mapping.inputs
 
         if callable(inputs):
+            constant = context.cf.constants.get(instruction.operands[0].value)
             signature = inspect.signature(inputs)
             if len(signature.parameters) == 1:
                 first = next(iter(signature.parameters.values()))
                 if first.annotation == MethodReference:
-                    current_size -= sum_list_of_types(inputs(context.cf.constants.get(instruction.operands[0].value)))
+                    current_size -= sum_list_of_types(inputs(constant))
                 elif first.annotation == FieldReference:
-                    current_size -= sum_list_of_types(inputs(context.cf.constants.get(instruction.operands[0].value)))
+                    current_size -= sum_list_of_types(inputs(constant))
+                elif isinstance(constant, first.annotation.__args__):
+                    current_size += sum_list_of_types(outputs(constant))
                 else:
                     raise ValueError(f"Unknown annotation {first.annotation}")
             else:
