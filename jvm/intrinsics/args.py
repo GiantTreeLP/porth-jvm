@@ -1,10 +1,7 @@
-from collections import deque
-
-from jawa.assemble import Label
 from jawa.attributes.bootstrap import BootstrapMethod
 from jawa.constants import MethodHandleKind
 
-from jvm.commons import push_int, LONG_SIZE, push_constant
+from jvm.commons import LONG_SIZE
 from jvm.context import GenerateContext
 from jvm.instructions import Instructions
 
@@ -132,131 +129,6 @@ def prepare_argv_method_instructions(context: GenerateContext):
         .return_void()
     )
 
-    instructions = deque()
-    # Store argc
-    push_int(context.cf, instructions, LONG_SIZE)
-    # Stack: 1
-    instructions.append(("invokestatic", context.extend_mem_method))
-    instructions.append(("putstatic", context.argc_ref))
-    # Stack: (empty)
-    instructions.append(("aload_0",))
-    # Stack: args array
-    instructions.append(("arraylength",))
-    # Stack: args array length (argc)
-    instructions.append(("dup",))
-    # Stack: args array length (argc), args array length (argc)
-    # Account for the implicit first argument (executable name)
-    push_int(context.cf, instructions, 1)
-    # Stack: args array length (argc), args array length (argc), 1
-    instructions.append(("iadd",))
-    # Stack: args array length (argc), args array length (argc) + 1
-    instructions.append(("i2l",))
-    # Stack: args array length (argc), args array length + 1 (argc, as long)
-    instructions.append(("getstatic", context.argc_ref))
-    # Stack: args array length (argc), args array length (argc, as long), 0
-    instructions.append(("invokestatic", context.store_64_method))
-
-    # Allocate argv pointer
-    # Stack: args array length (argc)
-    push_int(context.cf, instructions, LONG_SIZE)
-    # Stack: args array length (argc), 8
-    instructions.append(("invokestatic", context.extend_mem_method))
-    # Stack: args array length (argc), argv location
-    instructions.append(("putstatic", context.argv_ref))
-    # Stack: args array length (argc)
-
-    instructions.append(("dup",))
-    # Stack: args array length (argc), args array length (argc)
-    # Account for the terminating null value and the implicit first argument (executable name)
-    push_int(context.cf, instructions, 2)
-    # Stack: args array length (argc), args array length (argc), 1
-    instructions.append(("iadd",))
-    # Stack: args array length (argc), args array length (argc) + 1
-    push_int(context.cf, instructions, LONG_SIZE)  # 8 bytes
-    # Stack: args array length (argc), args array length (argc), 8
-    instructions.append(("imul",))
-    # Stack: args array length (argc), args array length (argc) * 8
-    instructions.append(("invokestatic", context.extend_mem_method))
-    # Stack: args array length (argc), argv table pointer
-    instructions.append(("getstatic", context.argv_ref))
-    # Stack: args array length (argc), argv table pointer, argv pointer
-    instructions.append(("invokestatic", context.store_64_method))
-    # Stack: args array length (argc)
-
-    push_constant(instructions, context.cf.constants.create_string(context.program_name + "\0"))
-    # Stack: args array length (argc), program name
-    instructions.append(("invokestatic", context.put_string_method))
-    # Stack: args array length (argc), insertion pointer
-    instructions.append(("getstatic", context.argv_ref))
-    instructions.append(("invokestatic", context.load_64_method))
-    # Stack: args array length (argc), insertion pointer, argv
-    instructions.append(("invokestatic", context.store_64_method))
-    # Stack: args array length (argc)
-
-    push_int(context.cf, instructions, 0)
-    # Stack: args array length (argc), 0
-    instructions.append(("istore", counter))
-    # Stack: args array length (argc)
-
-    instructions.append(Label("arg_loop"))
-    instructions.append(("dup",))
-    # Stack: args array length (argc), args array length (argc)
-    instructions.append(("iload", counter))
-    # Stack: args array length (argc), args array length (argc), index
-    instructions.append(("if_icmple", Label("arg_loop_exit")))
-    # Stack: args array length (argc)
-    instructions.append(("aload_0",))
-    # Stack: args array length (argc), args array
-    instructions.append(("iload", counter))
-
-    # Stack: args array length (argc), args array, index
-    instructions.append(("aaload",))
-    # Stack: args array length (argc), args array[index]
-    instructions.append(("invokestatic", context.put_string_method))
-    # Stack: args array length (argc), offset
-    push_int(context.cf, instructions, 1)
-    # Stack: args array length (argc), offset, 1
-    instructions.append(("invokestatic", context.extend_mem_method))
-    instructions.append(("pop2",))
-    # Stack: args array length (argc), offset
-    instructions.append(("getstatic", context.argv_ref))
-    instructions.append(("invokestatic", context.load_64_method))
-    instructions.append(("l2i",))
-    # Stack: args array length (argc), offset, argv
-    instructions.append(("iload", counter))
-    # Stack: args array length (argc), offset, argv, counter
-
-    # Account for the implicit first argument (executable name)
-    push_int(context.cf, instructions, 1)
-    # Stack: args array length (argc), offset, argv, counter, 1
-    instructions.append(("iadd",))
-    # Stack: args array length (argc), offset, argv, counter + 1
-
-    push_int(context.cf, instructions, LONG_SIZE)
-    # Stack: args array length (argc), offset, argv, counter + 1, 8
-    instructions.append(("imul",))
-    # Stack: args array length (argc), offset, argv, (counter + 1) * 8
-    instructions.append(("iadd",))
-    # Stack: args array length (argc), offset, ((counter + 1) * 8) + argv
-    instructions.append(("i2l",))
-    # Stack: args array length (argc), offset, ((counter + 1) * 8) + argv (as long)
-    instructions.append(("invokestatic", context.store_64_method))
-    # Stack: args array length (argc)
-    instructions.append(("iinc", counter, 1))
-    # Stack: args array length (argc)
-    instructions.append(("goto", Label("arg_loop")))
-    # Stack: args array length (argc)
-    instructions.append(Label("arg_loop_exit"))
-    # Stack: args array length (argc)
-    instructions.append(("pop",))
-    # Stack: (empty)
-
-    # print_memory(context, instructions)
-
-    instructions.append(("return",))
-
-    return instructions
-
 
 def prepare_envp_method_instructions(context: GenerateContext):
     bootstrap_methods: list = context.cf.bootstrap_methods
@@ -265,7 +137,9 @@ def prepare_envp_method_instructions(context: GenerateContext):
         MethodHandleKind.INVOKE_STATIC,
         "java/lang/invoke/StringConcatFactory",
         "makeConcatWithConstants",
-        "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/invoke/CallSite;"
+        "(Ljava/lang/invoke/MethodHandles$Lookup;"
+        "Ljava/lang/String;Ljava/lang/invoke/MethodType;Ljava/lang/String;[Ljava/lang/Object;)"
+        "Ljava/lang/invoke/CallSite;"
     )
 
     bootstrap_methods.append(
@@ -311,27 +185,27 @@ def prepare_envp_method_instructions(context: GenerateContext):
         .drop_long()
         .pop()
         .invoke_interface(context.cf.constants.create_interface_method_ref("java/util/Map", "entrySet",
-                                                                          "()Ljava/util/Set;"))
+                                                                           "()Ljava/util/Set;"))
         .invoke_interface(context.cf.constants.create_interface_method_ref("java/util/Set", "iterator",
-                                                                          "()Ljava/util/Iterator;"))
+                                                                           "()Ljava/util/Iterator;"))
         .store_reference(iterator)
         .push_integer(0)
         .label("env_loop")
         .load_reference(iterator)
         .invoke_interface(context.cf.constants.create_interface_method_ref("java/util/Iterator", "hasNext",
-                                                                          "()Z"))
+                                                                           "()Z"))
         .branch_if_false("env_loop_exit")
         .load_reference(iterator)
         .invoke_interface(context.cf.constants.create_interface_method_ref("java/util/Iterator", "next",
-                                                                          "()Ljava/lang/Object;"))
+                                                                           "()Ljava/lang/Object;"))
         .check_cast(context.cf.constants.create_class("java/util/Map$Entry"))
         .duplicate_top_of_stack()
         .invoke_interface(context.cf.constants.create_interface_method_ref("java/util/Map$Entry", "getKey",
-                                                                          "()Ljava/lang/Object;"))
+                                                                           "()Ljava/lang/Object;"))
         .check_cast(context.cf.constants.create_class("java/lang/String"))
         .swap()
         .invoke_interface(context.cf.constants.create_interface_method_ref("java/util/Map$Entry", "getValue",
-                                                                          "()Ljava/lang/Object;"))
+                                                                           "()Ljava/lang/Object;"))
         .check_cast(context.cf.constants.create_class("java/lang/String"))
         .invoke_dynamic(make_concat_with_constants)
         .invoke_static(context.put_string_method)

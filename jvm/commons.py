@@ -202,15 +202,6 @@ def string_get_bytes(cf: ClassFile, instructions: MutableSequence):
     )))
 
 
-def system_arraycopy(cf: ClassFile, instructions: MutableSequence):
-    # Stack: src, src_pos, dst, dst_pos, length
-    instructions.append(("invokestatic", cf.constants.create_method_ref(
-        "java/lang/System",
-        "arraycopy",
-        "(Ljava/lang/Object;ILjava/lang/Object;II)V"
-    )))
-
-
 def push_constant(instructions: MutableSequence, constant: Constant):
     if constant.index <= 255:
         instructions.append(("ldc", constant))
