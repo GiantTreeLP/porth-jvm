@@ -1,6 +1,6 @@
 import inspect
 from collections import deque
-from typing import Deque, Dict, Callable, Union, TypeAlias, Tuple
+from typing import Deque, Dict, Callable, Union, TypeAlias, Tuple, Optional
 
 from jawa.constants import FieldReference, InvokeDynamic, InterfaceMethodRef, MethodReference, Constant, Integer, Float, \
     String, ConstantClass, MethodHandle, MethodType, Number, Long, Double
@@ -731,18 +731,78 @@ INSTRUCTION_TO_STACK_MODIFICATION: Dict[
     "wide": no_stack_modification,
 }
 
+INSTRUCTION_TO_LOCAL_COUNT: Dict[str, Optional[int]] = {
+    "aload": None,
+    "astore": None,
+    "dload": None,
+    "dstore": None,
+    "fload": None,
+    "fstore": None,
+    "iload": None,
+    "istore": None,
+    "lload": None,
+    "lstore": None,
+    "ret": None,
+    "aload_0": 1,
+    "aload_1": 2,
+    "aload_2": 3,
+    "aload_3": 4,
+    "astore_0": 1,
+    "astore_1": 2,
+    "astore_2": 3,
+    "astore_3": 4,
+    "dload_0": 2,
+    "dload_1": 3,
+    "dload_2": 4,
+    "dload_3": 5,
+    "dstore_0": 2,
+    "dstore_1": 3,
+    "dstore_2": 4,
+    "dstore_3": 5,
+    "fload_0": 1,
+    "fload_1": 2,
+    "fload_2": 3,
+    "fload_3": 4,
+    "fstore_0": 1,
+    "fstore_1": 2,
+    "fstore_2": 3,
+    "fstore_3": 4,
+    "iload_0": 1,
+    "iload_1": 2,
+    "iload_2": 3,
+    "iload_3": 4,
+    "istore_0": 1,
+    "istore_1": 2,
+    "istore_2": 3,
+    "istore_3": 4,
+    "lload_0": 2,
+    "lload_1": 3,
+    "lload_2": 4,
+    "lload_3": 5,
+    "lstore_0": 2,
+    "lstore_1": 3,
+    "lstore_2": 4,
+    "lstore_3": 5,
+}
+
 
 class Stack(object):
     _stack: OperandStack
     _max_stack_size: int
+    _local_count: int
 
     def __init__(self):
         self._stack = deque()
         self._max_stack_size = 0
+        self._local_count = 0
 
     @property
     def max_stack_size(self) -> int:
         return self._max_stack_size
+
+    @property
+    def local_count(self) -> int:
+        return self._local_count
 
     def update_stack(self, instruction: Instruction, *operands: Operand):
         if instruction in INSTRUCTION_TO_STACK_MODIFICATION:
@@ -759,3 +819,13 @@ class Stack(object):
                                        sum(map(lambda op: op.size, self._stack)))
         else:
             raise NotImplementedError(f"No stack modification for instruction {instruction}!")
+
+        if instruction in INSTRUCTION_TO_LOCAL_COUNT:
+            local_count = INSTRUCTION_TO_LOCAL_COUNT[instruction]
+            if local_count is not None:
+                self._local_count = max(self._local_count, local_count)
+            elif len(operands) == 1 and isinstance(operands[0], int):
+                if instruction[0] in "ld":
+                    self._local_count = max(self._local_count, operands[0] + 2)
+                else:
+                    self._local_count = max(self._local_count, operands[0] + 1)
