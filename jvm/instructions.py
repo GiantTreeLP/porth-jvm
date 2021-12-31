@@ -2018,4 +2018,13 @@ class Instructions(object):
             )
         )
 
+    def string_get_bytes(self) -> 'Instructions':
+        return self.invoke_virtual(
+            self._context.cf.constants.create_method_ref(
+                "java/lang/String",
+                "getBytes",
+                "()[B"
+            )
+        )
+
     # </editor-fold>
