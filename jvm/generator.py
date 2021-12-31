@@ -1,7 +1,7 @@
 import random
 from collections import deque
 from pathlib import Path
-from typing import Optional, Union, Iterable
+from typing import Optional
 
 from jawa.assemble import assemble, Label
 from jawa.attributes.line_number_table import LineNumberTableAttribute, line_number_entry
@@ -18,7 +18,7 @@ from jvm.intrinsics.args import prepare_argv_method_instructions, prepare_envp_m
 from jvm.intrinsics.init import clinit_method_instructions
 from jvm.intrinsics.load import load_64_method_instructions, \
     load_32_method_instructions, load_16_method_instructions, load_8_method_instructions
-from jvm.intrinsics.memory import extend_mem_method_instructions, put_string_method_instructions, print_memory
+from jvm.intrinsics.memory import extend_mem_method_instructions, put_string_method_instructions
 from jvm.intrinsics.procedures import Procedure
 from jvm.intrinsics.store import store_32, store_16, store_8, store_64_method_instructions
 from jvm.intrinsics.syscalls import syscall3_method_instructions
@@ -55,7 +55,10 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
 
     add_utility_methods(context)
 
-    for name, procedure in parse_context.procs.items():
+    called_procedures = scan_called_procedures(parse_context, None)
+
+    for name in called_procedures:
+        procedure = parse_context.procs[name]
         method_name = name
         signature = make_signature(procedure.contract)
         while cf.methods.find_one(name=method_name, f=lambda m: m.descriptor.value == signature):
@@ -73,10 +76,7 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
         ]
         create_method(context, method, procedure, program.ops[procedure.addr:])
 
-
     create_method(context, main_method, None, program.ops)
-
-    remove_unused_procedures(context)
 
     with open(out_file_path, "wb") as f:
         cf.save(f)
@@ -559,15 +559,23 @@ def make_signature(contract):
         return "(" + "J" * len(contract.ins) + ")" + "[J"
 
 
-def remove_unused_procedures(context: GenerateContext):
-    while any(len(proc.call_sites) == 0 for proc in context.procedures.values()):
-        for proc in list(context.procedures.values()):
-            if not proc.call_sites:
-                method = context.cf.methods.find_one(name=proc.name)
-                context.cf.methods.remove(method)
-                for called_proc in context.procedures.values():
-                    called_proc.call_sites = [
-                        call_site for call_site in called_proc.call_sites
-                        if call_site != proc.name
-                    ]
-                del context.procedures[proc.name]
+def scan_called_procedures(
+        context: ParseContext,
+        procedure: Optional[Proc] = None,
+        state: Optional[set[str]] = None
+) -> set[str]:
+    called_procedures: set[str] = set() if state is None else state
+    current_proc: Optional[OpAddr] = None
+    for ip, op in enumerate(context.ops if procedure is None else context.ops[procedure.addr:]):
+        if current_proc is not None and op.typ != OpType.RET:
+            continue
+        if op.typ == OpType.SKIP_PROC:
+            current_proc = ip + 1
+        elif op.typ == OpType.CALL:
+            if op.token.value not in called_procedures:
+                called_procedures.add(op.token.value)
+                called_procedures.union(
+                    scan_called_procedures(context, context.procs[op.token.value], called_procedures))
+        elif op.typ == OpType.RET:
+            current_proc = None
+    return called_procedures
