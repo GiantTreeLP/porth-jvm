@@ -3,7 +3,8 @@ from typing import TypeAlias, Union, Dict, Tuple, List
 
 # Types
 from jawa.assemble import Label
-from jawa.constants import Constant, MethodReference, InvokeDynamic, FieldReference, InterfaceMethodRef
+from jawa.constants import Constant, MethodReference, InvokeDynamic, FieldReference, InterfaceMethodRef, Reference
+from jawa.methods import Method
 
 Instruction: TypeAlias = Union[Label, str]
 Operand: TypeAlias = Union[Label, Constant, int, Dict[int, Label]]
@@ -71,9 +72,14 @@ def get_method_return_type(method_reference: Union[MethodReference, InvokeDynami
         raise ValueError(f"Unknown return type: {return_type}")
 
 
-def get_method_input_types(method_reference: Union[MethodReference, InvokeDynamic, InterfaceMethodRef]) \
+def get_method_input_types(method_reference: Union[Method, MethodReference, InterfaceMethodRef, InvokeDynamic]) \
         -> List[OperandType]:
-    descriptor = method_reference.name_and_type.descriptor.value
+    if isinstance(method_reference, Method):
+        descriptor = method_reference.descriptor.value
+    elif isinstance(method_reference, (Reference, InvokeDynamic)):
+        descriptor = method_reference.name_and_type.descriptor.value
+    else:
+        raise ValueError(f"Unknown method reference type: {type(method_reference)}")
 
     types = []
 
