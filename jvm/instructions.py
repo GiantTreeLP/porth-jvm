@@ -1289,7 +1289,7 @@ class Instructions(object):
             return Label(label)
 
     def assemble(self) -> List[AssemblyInstruction]:
-        return list(assemble(self._instructions))
+        return assemble(self._instructions)
 
     def append(self, instruction: Instruction, *operands: Operand) -> 'Instructions':
         if isinstance(instruction, Label):
@@ -1634,8 +1634,14 @@ class Instructions(object):
     def move_short_behind_long(self) -> 'Instructions':
         return self.duplicate_short_behind_long().pop()
 
+    def move_short_behind_top_2_of_stack(self) -> 'Instructions':
+        return self.duplicate_behind_top_2_of_stack().pop()
+
     def move_long_behind_short(self) -> 'Instructions':
         return self.duplicate_long_behind_short().drop_long()
+
+    def move_top_2_behind_long(self) -> 'Instructions':
+        return self.duplicate_top_2_behind_long().drop_long()
 
     # </editor-fold>
 
@@ -1702,16 +1708,16 @@ class Instructions(object):
     # </editor-fold>
 
     # <editor-fold desc="Remainder/Modulo" defaultstate="collapsed">
-    def modulo_integer(self) -> 'Instructions':
+    def remainder_integer(self) -> 'Instructions':
         return self.append("irem")
 
-    def modulo_long(self) -> 'Instructions':
+    def remainder_long(self) -> 'Instructions':
         return self.append("lrem")
 
-    def modulo_double(self) -> 'Instructions':
+    def remainder_double(self) -> 'Instructions':
         return self.append("drem")
 
-    def modulo_float(self) -> 'Instructions':
+    def remainder_float(self) -> 'Instructions':
         return self.append("frem")
 
     # </editor-fold>
