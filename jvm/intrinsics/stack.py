@@ -12,6 +12,7 @@ from jvm.intrinsics import Operand, INTEGER_TYPES, MNEMONIC_TO_TYPE, get_field_t
 OperandStack: TypeAlias = Deque[OperandType]
 
 
+# <editor-fold desc="Stack operations">
 # noinspection PyUnusedLocal
 def no_stack_modification(stack: OperandStack) -> None:
     pass
@@ -517,6 +518,8 @@ def swap(stack: OperandStack) -> None:
     stack.append(first)
     stack.append(second)
 
+
+# </editor-fold>
 
 INSTRUCTION_TO_STACK_MODIFICATION: Dict[
     str, Union[
