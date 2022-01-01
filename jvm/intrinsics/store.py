@@ -1,37 +1,6 @@
-from typing import MutableSequence
-
-from jvm.commons import push_int
 from jvm.context import GenerateContext
 from jvm.instructions import Instructions
 
-
-def store_byte(context: GenerateContext, instructions: MutableSequence, index: int):
-    shift = index * 8
-    if index != 0:
-        # Stack: index, int
-        instructions.append(("swap",))
-        # Stack: int, index
-        push_int(context.cf, instructions, index)
-        # Stack: int, index, 1
-        instructions.append(("iadd",))
-        # Stack: int, index + 1
-        instructions.append(("swap",))
-    # Stack: index + 1, int
-    if shift != 0:
-        push_int(context.cf, instructions, shift)
-        # Stack: index, int, shift
-        instructions.append(("iushr",))
-        # Stack: index, int >>> shift
-    # instructions.append(("i2b",))
-    # Stack: index, byte
-    instructions.append(("getstatic", context.memory_ref))
-    # Stack: index, byte, ref
-    instructions.append(("dup_x2",))
-    # Stack: ref, index, byte, ref
-    instructions.append(("pop",))
-    # Stack: ref, index, byte
-    instructions.append(("bastore",))  # Requires ref, index, byte
-    # Stack: (empty)
 
 def store_64_method_instructions(context: GenerateContext) -> Instructions:
     return (
@@ -72,60 +41,59 @@ def store_64_method_instructions(context: GenerateContext) -> Instructions:
     )
 
 
-def store_32(context: GenerateContext, instructions: MutableSequence):
+def store_32(context: GenerateContext, instructions: Instructions):
     # Stack: int (as long), index (as long)
-    instructions.append(("l2i",))
+    instructions.convert_long_to_integer()
     # Stack: int (as long), index (as int)
-    instructions.append(("dup_x2",))
-    # Stack: index (as int), int (as long), index (as int)
-    instructions.append(("pop",))
+    instructions.move_short_behind_long()
     # Stack: index, int (as long)
-    instructions.append(("l2i",))
+    instructions.convert_long_to_integer()
     # Stack: index, int (as int)
-    instructions.append(("dup2",))
+    instructions.duplicate_top_2_of_stack()
     # Stack: index, int, index, int
-    instructions.append(("dup2",))
+    instructions.duplicate_top_2_of_stack()
     # Stack: index, int, index, int, index, int
-    instructions.append(("dup2",))
+    instructions.duplicate_top_2_of_stack()
     # Stack: index, int, index, int, index, int, index, int
-    store_byte(context, instructions, 0)
+    instructions.store_byte(0)
     # Stack: index, int, index, int, index, int
-    store_byte(context, instructions, 1)
+    instructions.store_byte(1)
     # Stack: index, int, index, int
-    store_byte(context, instructions, 2)
+    instructions.store_byte(2)
     # Stack: index, int
-    store_byte(context, instructions, 3)
+    instructions.store_byte(3)
     # Stack: (empty)
 
 
-def store_16(context: GenerateContext, instructions: MutableSequence):
+def store_16(context: GenerateContext, instructions: Instructions):
     # Stack: short (as long), index (as long)
-    instructions.append(("l2i",))
+    instructions.convert_long_to_integer()
     # Stack: short (as long), index (as int)
-    instructions.append(("dup_x2",))
-    # Stack: index (as int), short (as long), index (as int)
-    instructions.append(("pop",))
+    instructions.move_short_behind_long()
     # Stack: index, short (as long)
-    instructions.append(("l2i",))
+    instructions.convert_long_to_integer()
     # Stack: index, short (as int)
-    instructions.append(("dup2",))
+    instructions.duplicate_top_2_of_stack()
     # Stack: index, short, index, short
-    store_byte(context, instructions, 0)
+    instructions.store_byte(0)
     # Stack: index, short
-    store_byte(context, instructions, 1)
+    instructions.store_byte(1)
     # Stack: (empty)
 
 
-def store_8(context: GenerateContext, instructions: MutableSequence):
-    # Stack: byte, index
-    instructions.append(("l2i",))
-    instructions.append(("dup_x2",))
-    instructions.append(("pop",))
+def store_8(context: GenerateContext, instructions: Instructions):
+    # Stack: byte (as long), index (as long)
+    instructions.convert_long_to_integer()
+    # Stack: byte (as int), index
+    instructions.move_short_behind_long()
+    # Stack: index, byte (as long)
+    instructions.convert_long_to_integer()
+    # Stack: index, byte (as int)
+    instructions.convert_integer_to_byte()
     # Stack: index, byte
-    instructions.append(("l2i",))
-    instructions.append(("i2b",))
-    instructions.append(("getstatic", context.memory_ref))
-    instructions.append(("dup_x2",))
-    instructions.append(("pop",))
-    instructions.append(("bastore",))
+    instructions.get_static_field(context.memory_ref)
+    # Stack: index, byte, memory
+    instructions.move_short_behind_top_2_of_stack()
+    # Stack: memory, index, byte
+    instructions.store_array_byte()
     # Stack: (empty)
