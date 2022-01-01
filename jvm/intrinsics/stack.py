@@ -20,7 +20,7 @@ def no_stack_modification(stack: OperandStack) -> None:
 
 def array_load(type_: OperandType) -> Callable[[OperandStack], None]:
     def array_load_impl(stack: OperandStack) -> None:
-        if stack[-1].size != 1 or stack[-1] not in INTEGER_TYPES:
+        if stack[-1] not in INTEGER_TYPES:
             raise Exception(f"No valid index for array load, expected size 1, got {stack[-1].size}")
         if stack[-2] != OperandType.Reference:
             raise Exception(f"No valid array reference for array load, expected reference, got {stack[-2]}")
@@ -33,8 +33,8 @@ def array_load(type_: OperandType) -> Callable[[OperandStack], None]:
 
 def array_store(type_: OperandType) -> Callable[[OperandStack], None]:
     def array_store_impl(stack: OperandStack) -> None:
-        if stack[-1].size != type_.size and stack[-1] not in INTEGER_TYPES:
-            raise Exception(f"No valid value for array store, expected size {type_.size}, got {stack[-1].size}")
+        if stack[-1] not in INTEGER_TYPES and stack[-1] != type_:
+            raise Exception(f"No valid value for array store, expected {type_}, got {stack[-1]}")
         if stack[-2] not in INTEGER_TYPES:
             raise Exception(f"No valid index for array store, expected integer, got {stack[-2]}")
         if stack[-3] != OperandType.Reference:
@@ -44,18 +44,6 @@ def array_store(type_: OperandType) -> Callable[[OperandStack], None]:
         stack.pop()
 
     return array_store_impl
-
-
-def byte_boolean_array_store(stack: OperandStack) -> None:
-    if stack[-1] not in INTEGER_TYPES:
-        raise Exception(f"No valid value for byte array store, expected integer, got {stack[-1]}")
-    if stack[-2] not in INTEGER_TYPES:
-        raise Exception(f"No valid index for byte array store, expected integer, got {stack[-2]}")
-    if stack[-3] != OperandType.Reference:
-        raise Exception(f"No valid array reference for byte array store, expected reference, got {stack[-3]}")
-    stack.pop()
-    stack.pop()
-    stack.pop()
 
 
 def push_reference(stack: OperandStack) -> None:
@@ -79,7 +67,7 @@ def push_double(stack: OperandStack) -> None:
 
 
 def new_array(stack: OperandStack) -> None:
-    if stack[-1].size != 1 or stack[-1] not in INTEGER_TYPES:
+    if stack[-1] not in INTEGER_TYPES:
         raise Exception(f"No valid size for new array, expected operand size 1, got {stack[-1].size}")
     stack.pop()
     stack.append(OperandType.Reference)
@@ -140,7 +128,7 @@ def array_length(stack: OperandStack) -> None:
 def throw_exception(stack: OperandStack) -> None:
     if stack[-1] != OperandType.Reference:
         raise Exception(f"No valid exception reference for throw, expected reference, got {stack[-1]}")
-    stack.clear()
+    stack.pop()
     stack.append(OperandType.Reference)
 
 
@@ -154,7 +142,8 @@ def check_cast(stack: OperandStack) -> None:
 def convert(from_: OperandType, to: OperandType) -> Callable[[OperandStack], None]:
     def convert_impl(stack: OperandStack) -> None:
         if stack[-1] in INTEGER_TYPES and from_ in INTEGER_TYPES:
-            stack[-1] = from_
+            stack.pop()
+            stack.append(from_)
         if stack[-1] != from_:
             raise Exception(f"No valid value for convert, expected {from_}, got {stack[-1]}")
         stack.pop()
@@ -180,17 +169,19 @@ def unary_operation(type_: OperandType) -> Callable[[OperandStack], None]:
     def unary_operation_impl(stack: OperandStack) -> None:
         if stack[-1] != type_:
             raise Exception(f"No valid value for unary operation, expected {type_}, got {stack[-1]}")
+        if stack[-1] not in INTEGER_TYPES and type_ in INTEGER_TYPES:
+            raise Exception(f"No valid value for unary operation, expected {type_}, got {stack[-1]}")
         stack.pop()
         stack.append(type_)
 
     return unary_operation_impl
 
 
-def separate_comparison(inputs: OperandType) -> Callable[[OperandStack], None]:
+def separate_comparison(type_: OperandType) -> Callable[[OperandStack], None]:
     def separate_comparison_impl(stack: OperandStack) -> None:
-        if stack[-1] != inputs or stack[-2] != inputs:
+        if stack[-1] != type_ or stack[-2] != type_:
             raise Exception(
-                f"No valid value for separate comparison, expected {inputs}, got {stack[-1]} and {stack[-2]}")
+                f"No valid value for separate comparison, expected {type_}, got {stack[-1]} and {stack[-2]}")
         stack.pop()
         stack.pop()
         stack.append(OperandType.Integer)
@@ -201,7 +192,9 @@ def separate_comparison(inputs: OperandType) -> Callable[[OperandStack], None]:
 def duplicate_short(stack: OperandStack) -> None:
     if stack[-1].size != 1:
         raise Exception(f"No valid value for duplicate short, expected operand size 1, got {stack[-1].size}")
-    stack.append(stack[-1])
+    dup = stack.pop()
+    stack.append(dup)
+    stack.append(dup)
 
 
 def duplicate_short_behind(stack: OperandStack) -> None:
@@ -352,16 +345,16 @@ def branch_compare_references(stack: OperandStack) -> None:
     if stack[-1] != Operand.Reference or stack[-2] != Operand.Reference:
         raise Exception(f"branch_compare_references expected operands of reference, got {stack[-1]} and {stack[-2]}")
     else:
-        first = stack.pop()
-        second = stack.pop()
+        stack.pop()
+        stack.pop()
 
 
 def branch_compare_integers(stack: OperandStack) -> None:
     if stack[-1] not in INTEGER_TYPES or stack[-2] not in INTEGER_TYPES:
         raise Exception(f"branch_compare_integers expected operands of integer, got {stack[-1]} and {stack[-2]}")
     else:
-        first = stack.pop()
-        second = stack.pop()
+        stack.pop()
+        stack.pop()
 
 
 def instance_of(stack: OperandStack) -> None:
@@ -400,7 +393,7 @@ def invoke_instance(stack: OperandStack, operands: Tuple[Operand]) -> None:
     input_types = get_method_input_types(invocation)
     return_type = get_method_return_type(invocation)[0]
 
-    if len(stack) < len(input_types):
+    if len(stack) < len(input_types) + 1:
         raise Exception(f"invoke_instance expected at least {len(input_types)} operands on stack, got {len(stack)}")
 
     for input_type in reversed(input_types):
@@ -411,8 +404,8 @@ def invoke_instance(stack: OperandStack, operands: Tuple[Operand]) -> None:
 
     if stack[-1] != OperandType.Reference:
         raise Exception(f"invoke_instance expected reference on top of stack, got {stack[-1]}")
-
     stack.pop()
+
     if return_type is not None:
         stack.append(return_type)
 
@@ -487,11 +480,9 @@ def put_field(stack: OperandStack, operands: Tuple[Operand]) -> None:
     field_type = get_field_type(field)
     if stack[-1] != field_type:
         raise Exception(f"put_field expected operand to be {field_type}, got {stack[-1]}")
-    else:
-        stack.pop()
-
-    if stack[-1] != Operand.Reference:
+    if stack[-2] != Operand.Reference:
         raise Exception(f"put_field expected reference on top of stack, got {stack[-1]}")
+    stack.pop()
     stack.pop()
 
 
@@ -545,10 +536,10 @@ INSTRUCTION_TO_STACK_MODIFICATION: Dict[
     "astore_3": pop_reference,
     "athrow": throw_exception,
     "baload": array_load(OperandType.Byte),
-    "bastore": byte_boolean_array_store,
+    "bastore": array_store(OperandType.Byte),
     "bipush": push_integer,
     "caload": array_load(OperandType.Char),
-    "castore": byte_boolean_array_store,
+    "castore": array_store(OperandType.Char),
     "checkcast": check_cast,
     "d2f": convert(OperandType.Double, OperandType.Float),
     "d2i": convert(OperandType.Double, OperandType.Integer),
@@ -808,17 +799,22 @@ class Stack(object):
         if instruction in INSTRUCTION_TO_STACK_MODIFICATION:
             stack_modification = INSTRUCTION_TO_STACK_MODIFICATION[instruction]
             arg_spec = inspect.getfullargspec(stack_modification)
-            if len(arg_spec.args) == 1:
-                stack_modification(self._stack)
-            elif len(arg_spec.args) == 2:
-                stack_modification(self._stack, operands)
-            else:
-                raise Exception("Unsupported stack modification")
+            try:
+                if len(arg_spec.args) == 1:
+                    stack_modification(self._stack)
+                elif len(arg_spec.args) == 2:
+                    stack_modification(self._stack, operands)
+                else:
+                    raise Exception("Unsupported stack modification")
+            except IndexError as e:
+                print(instruction, operands, e)
             # Update max stack size
             self._max_stack_size = max(self._max_stack_size,
                                        sum(map(lambda op: op.size, self._stack)))
         else:
             raise NotImplementedError(f"No stack modification for instruction {instruction}!")
+
+        # print(f"Stack: {len(self._stack)}", f"Instruction: {instruction}", "Operands:", *operands)
 
         if instruction in INSTRUCTION_TO_LOCAL_COUNT:
             local_count = INSTRUCTION_TO_LOCAL_COUNT[instruction]
