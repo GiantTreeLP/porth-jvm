@@ -2031,11 +2031,14 @@ class Instructions(object):
         )
 
     def string_get_bytes(self) -> 'Instructions':
-        return self.invoke_virtual(
+        return self.get_static_field(
+            self._context.cf.constants.create_field_ref("java/nio/charset/StandardCharsets", "UTF_8",
+                                                        "Ljava/nio/charset/Charset;")) \
+            .invoke_virtual(
             self._context.cf.constants.create_method_ref(
                 "java/lang/String",
                 "getBytes",
-                "()[B"
+                "(Ljava/nio/charset/Charset;)[B"
             )
         )
 
