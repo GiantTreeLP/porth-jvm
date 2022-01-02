@@ -29,6 +29,7 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
                           input_path: str):
     context = GenerateContext()
     context.procedures = dict()
+    context.strings = OrderedDict()
 
     if not program.ops:
         program.ops.append(
@@ -77,6 +78,10 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
         create_method(context, method, procedure, program.ops[procedure.addr:])
 
     create_method(context, main_method, None, program.ops)
+
+    # Create the <clinit> method at the very end to ensure that the context is fully populated
+    clinit_method = create_method_prototype(context.cf, "<clinit>", "()V")
+    create_method_direct(clinit_method, clinit_method_instructions(context))
 
     with open(out_file_path, "wb") as f:
         cf.save(f)
@@ -172,9 +177,6 @@ def add_utility_methods(context: GenerateContext):
                                                                      syscall3_method.descriptor.value)
     create_method_direct(syscall3_method, syscall3_method_instructions(context))
 
-    clinit_method = create_method_prototype(context.cf, "<clinit>", "()V")
-    create_method_direct(clinit_method, clinit_method_instructions(context))
-
 
 def create_method_prototype(cf: ClassFile, name: str, descriptor: str):
     method = cf.methods.create(name, descriptor, code=True)
@@ -228,33 +230,15 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
         elif op.typ == OpType.PUSH_STR:
             assert isinstance(op.operand, str), "This could be a bug in the parsing step"
 
-            string_constant = context.cf.constants.create_string(op.operand)
+            memory_location = context.get_string(op.operand)
+            instructions.push_long(len(op.operand.encode("utf-8")))
+            instructions.push_long(memory_location)
 
-            instructions.push_constant(string_constant)
-            # Stack: string
-            instructions.duplicate_top_of_stack()
-            # Stack: string, string
-            instructions.string_get_bytes()
-            # Stack: string, bytes
-            instructions.array_length()
-            # Stack: string, length
-            instructions.convert_integer_to_long()
-            # Stack: string, length (as long)
-            instructions.move_long_behind_short()
-            # Stack: length (as long), string
-
-            instructions.invoke_static(context.put_string_method)
-            # Stack: length (as long), pointer to string
-
-            # print_memory(context, instructions)
         elif op.typ == OpType.PUSH_CSTR:
             assert isinstance(op.operand, str), "This could be a bug in the parsing step"
-            string_constant = context.cf.constants.create_string(op.operand + "\0")
 
-            instructions.push_constant(string_constant)
-            instructions.invoke_static(context.put_string_method)
-
-            # print_memory(context.cf, instructions)
+            memory_location = context.get_string(op.operand + "\0")
+            instructions.push_long(memory_location)
 
         elif op.typ == OpType.PUSH_MEM:
             assert isinstance(op.operand, MemAddr), "This could be a bug in the parsing step"

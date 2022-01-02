@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Dict, OrderedDict, Tuple
 
 from jawa.constants import MethodReference, FieldReference
 
@@ -11,7 +12,8 @@ from porth.porth import Program
 class GenerateContext:
     program: Program
     program_name: str
-    procedures: dict[str, Procedure]
+    procedures: Dict[str, Procedure]
+    strings: OrderedDict[str, int]
 
     cf: DeduplicatingClassFile
 
@@ -33,3 +35,22 @@ class GenerateContext:
     argv_ref: FieldReference
     envp_ref: FieldReference
     fd_ref: FieldReference
+
+    def get_string(self, string: str) -> int:
+        if string not in self.strings:
+            if len(self.strings) > 0:
+                # noinspection PyTypeChecker
+                last_string: Tuple[str, int] = next(reversed(self.strings.items()))
+
+                self.strings[string] = last_string[1] + len(last_string[0].encode("utf-8"))
+            else:
+                self.strings[string] = 0
+
+        return self.strings[string] + self.program.memory_capacity
+
+    def get_strings_size(self) -> int:
+        # noinspection PyTypeChecker
+        last_string: Tuple[str, int] = next(reversed(self.strings.items()))
+        size = last_string[1] + len(last_string[0].encode("utf-8"))
+        assert size == sum(len(s.encode("utf-8")) for s in self.strings)
+        return size
