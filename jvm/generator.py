@@ -230,15 +230,19 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
         elif op.typ == OpType.PUSH_STR:
             assert isinstance(op.operand, str), "This could be a bug in the parsing step"
 
-            memory_location = context.get_string(op.operand)
+            offset = context.get_string(op.operand)
             instructions.push_long(len(op.operand.encode("utf-8")))
-            instructions.push_long(memory_location)
+            instructions.push_long(context.program.memory_capacity)
+            instructions.push_long(offset)
+            instructions.add_long()
 
         elif op.typ == OpType.PUSH_CSTR:
             assert isinstance(op.operand, str), "This could be a bug in the parsing step"
 
-            memory_location = context.get_string(op.operand + "\0")
-            instructions.push_long(memory_location)
+            offset = context.get_string(op.operand + "\0")
+            instructions.push_long(context.program.memory_capacity)
+            instructions.push_long(offset)
+            instructions.add_long()
 
         elif op.typ == OpType.PUSH_MEM:
             assert isinstance(op.operand, MemAddr), "This could be a bug in the parsing step"

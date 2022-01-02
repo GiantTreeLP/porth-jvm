@@ -46,7 +46,7 @@ class GenerateContext:
             else:
                 self.strings[string] = 0
 
-        return self.strings[string] + self.program.memory_capacity
+        return self.strings[string]
 
     def get_strings_size(self) -> int:
         # noinspection PyTypeChecker
