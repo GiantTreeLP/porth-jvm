@@ -490,6 +490,85 @@ def syscall3_method_instructions(context: GenerateContext):
         .invoke_special(context.cf.constants.create_method_ref("java/lang/ProcessBuilder",
                                                                "<init>",
                                                                "(Ljava/util/List;)V"))
+
+        # Add the environment variables
+        .duplicate_top_of_stack()
+        .invoke_virtual(context.cf.constants.create_method_ref("java/lang/ProcessBuilder",
+                                                               "environment",
+                                                               "()Ljava/util/Map;"))
+        .duplicate_top_of_stack()
+        .invoke_interface(context.cf.constants.create_interface_method_ref("java/util/Map",
+                                                                           "clear",
+                                                                           "()V"))
+        # Stack: process env map
+        # Stack: process env map
+        .get_static_field(context.envp_ref)
+        # Stack: process env map, envp
+        .convert_long_to_integer()
+        # Stack: process env map, envp (as int)
+        .label("add_env_loop")
+        .duplicate_top_of_stack()
+        # Stack: process env map, envp, envp
+        .convert_integer_to_long()
+        .invoke_static(context.load_64_method)
+        # Stack: process env map, envp, memory[envp]
+        .duplicate_long()
+        # Stack: process env map, envp, memory[envp], memory[envp]
+        .push_long(0)
+        # Stack: process env map, envp, memory[envp], memory[envp], 0
+        .compare_long()
+        # Stack: process env map, envp, memory[envp], result (int)
+        .branch_if_equal("add_env_end")
+        # Stack: process env map, envp, memory[envp]
+        .cstring_to_string(3)
+        # Stack: process env map, envp, string
+        .push_constant(context.cf.constants.create_string("="))
+        # Stack: process env map, envp, string, "="
+        .push_integer(2)
+        # Stack: process env map, envp, string, "=", 2
+        .invoke_virtual(context.cf.constants.create_method_ref("java/lang/String",
+                                                               "split",
+                                                               "(Ljava/lang/String;I)[Ljava/lang/String;"))
+        # Stack: process env map, envp, array[key, value]
+        .duplicate_top_of_stack()
+        # Stack: process env map, envp, array[key, value], array[key, value]
+        .push_integer(0)
+        # Stack: process env map, envp, array[key, value], array[key, value], 0
+        .load_array_reference()
+        # Stack: process env map, envp, array[key, value], key
+        .swap()
+        # Stack: process env map, envp, key, array[key, value]
+        .push_integer(1)
+        # Stack: process env map, envp, key, array[key, value], 1
+        .load_array_reference()
+        # Stack: process env map, envp, key, value
+        .move_top_2_behind_long()
+        # Stack: key, value, process env map, envp
+        .duplicate_top_2_behind_top_4_of_stack()
+        # Stack: process env map, envp, key, value, process env map, envp
+        .drop()
+        # Stack: process env map, envp, key, value, process env map
+        .move_short_behind_top_2_of_stack()
+        # Stack: process env map, envp, process env map, key, value
+        .invoke_interface(context.cf.constants.create_interface_method_ref("java/util/Map",
+                                                                           "put",
+                                                                           "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;"))
+        .drop()
+        # Stack: process env map, envp
+        .push_integer(LONG_SIZE)
+        # Stack: process env map, envp, 8
+        .add_integer()
+        # Stack: process env map, envp + 8
+        .branch("add_env_loop")
+        .end_branch()
+        .label("add_env_end")
+        # Stack: process env map, envp, memory[envp]
+        .end_branch()
+        .drop_long()
+        # Stack: process env map, envp
+        .pop2()
+        # Stack: (empty)
+
         .duplicate_top_of_stack()
         .invoke_virtual(context.cf.constants.create_method_ref("java/lang/ProcessBuilder",
                                                                "inheritIO",
