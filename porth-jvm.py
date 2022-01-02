@@ -125,10 +125,9 @@ def main():
         if not silent:
             print("[INFO] Generating %s" % (basepath + ".class"))
         generate_jvm_bytecode(parse_context, program, "Main.class", program_path)
-        # cmd_call_echoed(["javap", "-v", "-c", "-constants", basepath + ".class"], silent)
-        cmd_call_echoed(["javap", "-v", "-c", "-constants", "-private", "Main.class"], silent)
+        cmd_call_echoed(["javap", "-v", "-c", "-constants", "Main.class"], silent)
         if run:
-            # -Xverify:none to verification of the stack, method names and stack map frames
+            # -Xverify:none to disable verification of stack map frames
             exit(cmd_call_echoed(["java", "-Xverify:none", "Main"] + argv, silent))
     elif subcommand == "help":
         usage(compiler_name)
