@@ -392,7 +392,7 @@ def invoke_instance(stack: OperandStack, operands: Tuple[Operand]) -> None:
     return_type = get_method_return_type(invocation)[0]
 
     if len(stack) < len(input_types) + 1:
-        raise Exception(f"invoke_instance expected at least {len(input_types)} operands on stack, got {len(stack)}")
+        raise Exception(f"invoke_instance expected at least {len(input_types) + 1} operands on stack, got {len(stack)}")
 
     for input_type in reversed(input_types):
         if stack[-1] != input_type:
@@ -791,6 +791,8 @@ BRANCHES: Set[str] = {
     "ifle",
     "iflt",
     "ifne",
+    "lookupswitch",
+    "tableswitch",
 }
 
 
@@ -847,6 +849,9 @@ class Stack(object):
                     self._local_count = max(self._local_count, operands[0] + 1)
 
         if instruction in BRANCHES:
+            if instruction in ("lookupswitch", "tablewitch"):
+                for _ in range(len(operands[0])):
+                    self._saved_stacks.append(self._stack.copy())
             self._saved_stacks.append(self._stack.copy())
 
     def restore_stack(self):
