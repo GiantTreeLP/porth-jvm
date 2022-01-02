@@ -5,7 +5,7 @@ from typing import Deque, Dict, Callable, Union, TypeAlias, Tuple, Optional
 from jawa.constants import FieldReference, InvokeDynamic, InterfaceMethodRef, MethodReference, Constant, Integer, Float, \
     String, ConstantClass, MethodHandle, MethodType, Number, Long, Double
 
-from jvm.intrinsics import Operand, INTEGER_TYPES, MNEMONIC_TO_TYPE, get_field_type, get_method_input_types, \
+from jvm.intrinsics import Operand, INTEGER_TYPES, get_field_type, get_method_input_types, \
     get_method_return_type, Instruction, OperandType
 
 OperandStack: TypeAlias = Deque[OperandType]
@@ -153,10 +153,10 @@ def convert(from_: OperandType, to: OperandType) -> Callable[[OperandStack], Non
 
 def binary_operation(type_: OperandType) -> Callable[[OperandStack], None]:
     def binary_operation_impl(stack: OperandStack) -> None:
-        if stack[-1] != type_ or stack[-2] != type_ \
-                and stack[-1] not in INTEGER_TYPES \
-                and stack[-2] not in INTEGER_TYPES:
-            raise Exception(f"No valid value for binary operation, expected {type_}, got {stack[-1]} and {stack[-2]}")
+        if stack[-1] != type_ or stack[-2] != type_:
+            if type_ not in INTEGER_TYPES and (stack[-1] not in INTEGER_TYPES or stack[-2] not in INTEGER_TYPES):
+                raise Exception(
+                    f"No valid value for binary operation, expected {type_}, got {stack[-1]} and {stack[-2]}")
         stack.pop()
         stack.pop()
         stack.append(type_)
@@ -320,13 +320,12 @@ def get_field(stack: OperandStack, operands: Tuple[Operand]) -> None:
     if not isinstance(operand, FieldReference):
         raise Exception(f"get_field expected operand to be a FieldReference, got {operand}")
 
-    descriptor = operand.name_and_type.descriptor.value
-
     if stack[-1] != OperandType.Reference:
         raise Exception(f"get_field expected reference on top of stack, got {stack[-1]}")
     else:
-        value = stack.pop()
-        stack.append(MNEMONIC_TO_TYPE[descriptor[0]])
+        type_ = get_field_type(operand)[0]
+        stack.pop()
+        stack.append(type_)
 
 
 def get_static(stack: OperandStack, operands: Tuple[Operand]) -> None:
@@ -360,7 +359,7 @@ def instance_of(stack: OperandStack) -> None:
     if stack[-1] != OperandType.Reference:
         raise Exception(f"instance_of expected reference on top of stack, got {stack[-1]}")
     else:
-        first = stack.pop()
+        stack.pop()
         stack.append(OperandType.Boolean)
 
 
