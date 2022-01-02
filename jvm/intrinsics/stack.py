@@ -5,9 +5,8 @@ from typing import Deque, Dict, Callable, Union, TypeAlias, Tuple, Optional
 from jawa.constants import FieldReference, InvokeDynamic, InterfaceMethodRef, MethodReference, Constant, Integer, Float, \
     String, ConstantClass, MethodHandle, MethodType, Number, Long, Double
 
-from jvm.instructions import Instruction, OperandType
 from jvm.intrinsics import Operand, INTEGER_TYPES, MNEMONIC_TO_TYPE, get_field_type, get_method_input_types, \
-    get_method_return_type
+    get_method_return_type, Instruction, OperandType
 
 OperandStack: TypeAlias = Deque[OperandType]
 
@@ -323,7 +322,7 @@ def get_field(stack: OperandStack, operands: Tuple[Operand]) -> None:
 
     descriptor = operand.name_and_type.descriptor.value
 
-    if stack[-1] != Operand.Reference:
+    if stack[-1] != OperandType.Reference:
         raise Exception(f"get_field expected reference on top of stack, got {stack[-1]}")
     else:
         value = stack.pop()
@@ -342,7 +341,7 @@ def get_static(stack: OperandStack, operands: Tuple[Operand]) -> None:
 
 
 def branch_compare_references(stack: OperandStack) -> None:
-    if stack[-1] != Operand.Reference or stack[-2] != Operand.Reference:
+    if stack[-1] != OperandType.Reference or stack[-2] != OperandType.Reference:
         raise Exception(f"branch_compare_references expected operands of reference, got {stack[-1]} and {stack[-2]}")
     else:
         stack.pop()
@@ -358,11 +357,11 @@ def branch_compare_integers(stack: OperandStack) -> None:
 
 
 def instance_of(stack: OperandStack) -> None:
-    if stack[-1] != Operand.Reference:
+    if stack[-1] != OperandType.Reference:
         raise Exception(f"instance_of expected reference on top of stack, got {stack[-1]}")
     else:
         first = stack.pop()
-        stack.append(Operand.Boolean)
+        stack.append(OperandType.Boolean)
 
 
 def invoke_static(stack: OperandStack, operands: Tuple[Operand]) -> None:
@@ -420,7 +419,7 @@ def new_multidimensional_array(stack: OperandStack, operands: Tuple[Operand]) ->
         else:
             stack.pop()
 
-    stack.append(Operand.Reference)
+    stack.append(OperandType.Reference)
 
 
 def push_constant(stack: OperandStack, operands: Tuple[Operand]) -> None:
@@ -472,15 +471,15 @@ def long_shift(stack: OperandStack) -> None:
 
 
 def put_field(stack: OperandStack, operands: Tuple[Operand]) -> None:
-    if len(operands) != 2:
-        raise Exception(f"put_field expected 2 operands, got {len(operands)}")
+    if len(operands) != 1:
+        raise Exception(f"put_field expected 1 operand, got {len(operands)}")
     field = operands[0]
     if not isinstance(field, FieldReference):
         raise Exception(f"put_field expected operand to be a Field, got {field}")
-    field_type = get_field_type(field)
+    field_type = get_field_type(field)[0]
     if stack[-1] != field_type:
         raise Exception(f"put_field expected operand to be {field_type}, got {stack[-1]}")
-    if stack[-2] != Operand.Reference:
+    if stack[-2] != OperandType.Reference:
         raise Exception(f"put_field expected reference on top of stack, got {stack[-1]}")
     stack.pop()
     stack.pop()
