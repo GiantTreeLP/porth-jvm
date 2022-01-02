@@ -1,5 +1,6 @@
 from enum import IntEnum
 
+from jvm.commons import LONG_SIZE
 from jvm.context import GenerateContext
 from jvm.instructions import Instructions
 
@@ -349,6 +350,7 @@ def syscall3_method_instructions(context: GenerateContext):
         .lookup_switch("exit0", {
             SysCalls.READ: "read",
             SysCalls.WRITE: "write",
+            SysCalls.EXECVE: "execve",
         })
         .label("read")
         .load_long(4)
@@ -380,6 +382,7 @@ def syscall3_method_instructions(context: GenerateContext):
         .label("read_return_value")
         .convert_integer_to_long()
         .return_long()
+        .end_branch()
 
         .label("write")
         .load_long(4)
@@ -408,8 +411,103 @@ def syscall3_method_instructions(context: GenerateContext):
                                                                "()V"))
         .load_long(0)
         .return_long()
+        .end_branch()
+
+        .label("execve")
+        .new(context.cf.constants.create_class("java/lang/ProcessBuilder"))
+        # Stack: process builder
+        .duplicate_top_of_stack()
+        # Stack: process builder, process builder
+
+        # Add command and args to this list
+        .new(context.cf.constants.create_class("java/util/LinkedList"))
+        .duplicate_top_of_stack()
+        .invoke_special(context.cf.constants.create_method_ref("java/util/LinkedList",
+                                                               "<init>",
+                                                               "()V"))
+        .duplicate_top_of_stack()
+
+        # Add command to the list
+        .load_long(4)
+        .cstring_to_string(1)
+        .invoke_interface(context.cf.constants.create_interface_method_ref("java/util/List",
+                                                                           "add",
+                                                                           "(Ljava/lang/Object;)Z"))
+
+        .drop()
+
+        # Add args to the list
+        .load_long(2)
+        # Stack: list, *argv
+        .label("add_args_loop")
+        .duplicate_long()
+        # Stack: list, *argv, *argv
+        .invoke_static(context.load_64_method)
+        # Stack: list, *argv, memory[*argv]
+        .duplicate_long()
+        # Stack: list, *argv, memory[*argv], memory[*argv]
+        .push_long(0)
+        # Stack: list, *argv, memory[*argv], memory[*argv], 0
+        .compare_long()
+        # Stack: list, *argv, memory[*argv], result (int)
+        .branch_if_equal("add_args_end")
+        # Stack: list, *argv, memory[*argv]
+        # .duplicate_long()
+        # .invoke_static(context.print_long_method)
+        .cstring_to_string(2)
+        # Stack: list, *argv, string
+        .move_short_behind_long()
+        # Stack: list, string, *argv
+        .move_top_2_behind_long()  # Moves a long behind two shorts (behind list)
+        # Stack: *argv, list, string
+        .swap()
+        # Stack: *argv, string, list
+        .duplicate_behind_top_of_stack()
+        # Stack: *argv, list, string, list
+        .swap()
+        # Stack: *argv, list, list, string
+        .invoke_interface(context.cf.constants.create_interface_method_ref("java/util/List",
+                                                                           "add",
+                                                                           "(Ljava/lang/Object;)Z"))
+        # Stack: *argv, list, result (boolean)
+        .drop()
+        # Stack: *argv, list
+        .move_short_behind_long()
+        # Stack: list, *argv
+        .push_long(LONG_SIZE)
+        # Stack: list, *argv, 8
+        .add_long()
+        # Stack: list, *argv + 8
+        .branch("add_args_loop")
+        .end_branch()
+        .label("add_args_end")
+        .end_branch()
+        # Stack: list, *argv
+        .drop_long()
+        .drop_long()
+
+        # Construct the process builder and start the process
+        .invoke_special(context.cf.constants.create_method_ref("java/lang/ProcessBuilder",
+                                                               "<init>",
+                                                               "(Ljava/util/List;)V"))
+        .duplicate_top_of_stack()
+        .invoke_virtual(context.cf.constants.create_method_ref("java/lang/ProcessBuilder",
+                                                               "inheritIO",
+                                                               "()Ljava/lang/ProcessBuilder;"))
+        .invoke_virtual(context.cf.constants.create_method_ref("java/lang/ProcessBuilder",
+                                                               "start",
+                                                               "()Ljava/lang/Process;"))
+        .invoke_virtual(context.cf.constants.create_method_ref("java/lang/Process",
+                                                               "waitFor",
+                                                               "()I"))
+        .convert_integer_to_long()
+        .push_long(SysCalls.EXIT)
+        .invoke_static(context.syscall1_method)
+        .return_long()
+        .end_branch()
 
         .label("exit0")
+        .end_branch()
         .push_long(0)
         .return_long()
     )
