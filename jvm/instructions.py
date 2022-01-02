@@ -1299,6 +1299,12 @@ class Instructions(object):
             self._stack.update_stack(instruction, *operands)
         return self
 
+    def end_branch(self):
+        self._stack.restore_stack()
+
+    def else_branch(self):
+        pass
+
     def label(self, name: LabelType) -> 'Instructions':
         return self.append(self._map_label(name))
 

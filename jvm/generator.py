@@ -278,10 +278,13 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
             pass
         elif op.typ == OpType.ELSE:
             assert isinstance(op.operand, OpAddr), "This could be a bug in the parsing step"
+            instructions.end_branch()
             instructions.branch(f"addr_{op.operand}")
+            instructions.end_branch()
         elif op.typ == OpType.END:
             assert isinstance(op.operand, int), "This could be a bug in the parsing step"
             if ip + 1 != op.operand:
+                instructions.end_branch()
                 instructions.branch(f"addr_{op.operand}")
         elif op.typ == OpType.DO:
             assert isinstance(op.operand, int), "This could be a bug in the parsing step"

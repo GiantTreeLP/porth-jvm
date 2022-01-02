@@ -1,6 +1,6 @@
 import inspect
 from collections import deque
-from typing import Deque, Dict, Callable, Union, TypeAlias, Tuple, Optional
+from typing import Deque, Dict, Callable, Union, TypeAlias, Tuple, Optional, Set
 
 from jawa.constants import FieldReference, InvokeDynamic, InterfaceMethodRef, MethodReference, Constant, Integer, Float, \
     String, ConstantClass, MethodHandle, MethodType, Number, Long, Double
@@ -774,16 +774,39 @@ INSTRUCTION_TO_LOCAL_COUNT: Dict[str, Optional[int]] = {
     "lstore_3": 5,
 }
 
+BRANCHES: Set[str] = {
+    "goto",
+    "goto_w",
+    "if_acmpeq",
+    "if_acmpne",
+    "if_icmpeq",
+    "if_icmpge",
+    "if_icmpgt",
+    "if_icmple",
+    "if_icmplt",
+    "if_icmpne",
+    "ifeq",
+    "ifge",
+    "ifgt",
+    "ifle",
+    "iflt",
+    "ifne",
+}
+
 
 class Stack(object):
     _stack: OperandStack
+    _saved_stacks: Deque[OperandStack]
     _max_stack_size: int
     _local_count: int
+    _branch_depth: int
 
     def __init__(self):
         self._stack = deque()
+        self._saved_stacks = deque()
         self._max_stack_size = 0
         self._local_count = 0
+        self._branch_depth = 0
 
     @property
     def max_stack_size(self) -> int:
@@ -797,15 +820,14 @@ class Stack(object):
         if instruction in INSTRUCTION_TO_STACK_MODIFICATION:
             stack_modification = INSTRUCTION_TO_STACK_MODIFICATION[instruction]
             arg_spec = inspect.getfullargspec(stack_modification)
-            try:
-                if len(arg_spec.args) == 1:
-                    stack_modification(self._stack)
-                elif len(arg_spec.args) == 2:
-                    stack_modification(self._stack, operands)
-                else:
-                    raise Exception("Unsupported stack modification")
-            except IndexError as e:
-                print(instruction, operands, e)
+
+            if len(arg_spec.args) == 1:
+                stack_modification(self._stack)
+            elif len(arg_spec.args) == 2:
+                stack_modification(self._stack, operands)
+            else:
+                raise Exception("Unsupported stack modification")
+
             # Update max stack size
             self._max_stack_size = max(self._max_stack_size,
                                        sum(map(lambda op: op.size, self._stack)))
@@ -819,7 +841,13 @@ class Stack(object):
             if local_count is not None:
                 self._local_count = max(self._local_count, local_count)
             elif len(operands) == 1 and isinstance(operands[0], int):
-                if instruction[0] in "ld":
+                if instruction[0] in ("l", "d"):
                     self._local_count = max(self._local_count, operands[0] + 2)
                 else:
                     self._local_count = max(self._local_count, operands[0] + 1)
+
+        if instruction in BRANCHES:
+            self._saved_stacks.append(self._stack.copy())
+
+    def restore_stack(self):
+        self._stack = self._saved_stacks.pop()
