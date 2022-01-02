@@ -1301,6 +1301,7 @@ class Instructions(object):
 
     def end_branch(self):
         self._stack.restore_stack()
+        return self
 
     def else_branch(self):
         pass
@@ -1355,6 +1356,9 @@ class Instructions(object):
         else:
             raise ValueError(f"{integer} greater than MAX_INT")
         return self
+
+    def push_null(self):
+        return self.append("aconst_null")
 
     # <editor-fold desc="Drops/Pops" defaultstate="collapsed" defaultstate="collapsed">
     def pop(self) -> 'Instructions':
@@ -2032,14 +2036,66 @@ class Instructions(object):
 
     def string_get_bytes(self) -> 'Instructions':
         return self.get_static_field(
-            self._context.cf.constants.create_field_ref("java/nio/charset/StandardCharsets", "UTF_8",
-                                                        "Ljava/nio/charset/Charset;")) \
-            .invoke_virtual(
-            self._context.cf.constants.create_method_ref(
-                "java/lang/String",
-                "getBytes",
-                "(Ljava/nio/charset/Charset;)[B"
+                self._context.cf.constants.create_field_ref("java/nio/charset/StandardCharsets", "UTF_8",
+                                                            "Ljava/nio/charset/Charset;")
+                ).invoke_virtual(
+                self._context.cf.constants.create_method_ref(
+                    "java/lang/String",
+                    "getBytes",
+                    "(Ljava/nio/charset/Charset;)[B"
+                )
+        )
+
+    def cstrlen(self, nonce: int = 1) -> 'Instructions':
+        # Stack: cstring pointer (as int)
+        return (
+            self.duplicate_top_of_stack()
+                .label(f"cstrlen_loop_{nonce}")
+                .duplicate_top_of_stack()
+                .convert_integer_to_long()
+                .invoke_static(self._context.load_8_method)
+                .convert_long_to_integer()
+                .branch_if_equal(f"cstrlen_loop_end_{nonce}")
+                .push_integer(1)
+                .add_integer()
+                .branch(f"cstrlen_loop_{nonce}")
+                .end_branch()
+                .label(f"cstrlen_loop_end_{nonce}")
+                .end_branch()
+                .swap()
+                .subtract_integer()
+            # Stack: length (as int)
+        )
+
+    def cstring_to_string(self, nonce: int = 1) -> 'Instructions':
+        return (
+            # Stack: cstr pointer
+            self.convert_long_to_integer()
+            # Stack: cstr pointer (as int)
+            .new(self._context.cf.constants.create_class("java/lang/String"))
+            # Stack: cstr pointer (as int), String
+            .duplicate_top_of_stack()
+            # Stack: cstr pointer (as int), String, String
+            .duplicate_top_2_behind_top_3_of_stack()
+            # Stack: String, String, cstr pointer (as int), String, String
+            .pop2()
+            # Stack: String, String, cstr pointer (as int)
+            .duplicate_top_of_stack()
+            # Stack: String, String, cstr pointer, cstr pointer
+            .cstrlen(nonce)
+            # Stack: String, String, cstr pointer, length
+            .get_static_field(self._context.memory_ref)
+            # Stack: String, String, cstr pointer, length, memory
+            .move_short_behind_top_2_of_stack()
+            # Stack: String, String, memory, cstr pointer, length
+            .get_static_field(
+                self._context.cf.constants.create_field_ref("java/nio/charset/StandardCharsets", "UTF_8",
+                                                            "Ljava/nio/charset/Charset;")
             )
+            # Stack: String, String, memory, cstr pointer, length, charset
+            .invoke_special(self._context.cf.constants.create_method_ref("java/lang/String", "<init>",
+                                                                         "([BIILjava/nio/charset/Charset;)V"))
+            # Stack: string
         )
 
     # </editor-fold>
