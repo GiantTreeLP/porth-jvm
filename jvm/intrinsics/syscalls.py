@@ -429,7 +429,7 @@ def syscall3_method_instructions(context: GenerateContext):
 
         # Add command to the list
         .load_long(4)
-        .cstring_to_string(1)
+        .invoke_static(context.cstring_to_string_method)
         .invoke_interface(context.cf.constants.create_interface_method_ref("java/util/List",
                                                                            "add",
                                                                            "(Ljava/lang/Object;)Z"))
@@ -454,7 +454,7 @@ def syscall3_method_instructions(context: GenerateContext):
         # Stack: list, *argv, memory[*argv]
         # .duplicate_long()
         # .invoke_static(context.print_long_method)
-        .cstring_to_string(2)
+        .invoke_static(context.cstring_to_string_method)
         # Stack: list, *argv, string
         .move_short_behind_long()
         # Stack: list, string, *argv
@@ -520,7 +520,7 @@ def syscall3_method_instructions(context: GenerateContext):
         # Stack: process env map, envp, memory[envp], result (int)
         .branch_if_equal("add_env_end")
         # Stack: process env map, envp, memory[envp]
-        .cstring_to_string(3)
+        .invoke_static(context.cstring_to_string_method)
         # Stack: process env map, envp, string
         .push_constant(context.cf.constants.create_string("="))
         # Stack: process env map, envp, string, "="

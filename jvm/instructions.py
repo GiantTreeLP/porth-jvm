@@ -2067,35 +2067,4 @@ class Instructions(object):
             # Stack: length (as int)
         )
 
-    def cstring_to_string(self, nonce: int = 1) -> 'Instructions':
-        return (
-            # Stack: cstr pointer
-            self.convert_long_to_integer()
-            # Stack: cstr pointer (as int)
-            .new(self._context.cf.constants.create_class("java/lang/String"))
-            # Stack: cstr pointer (as int), String
-            .duplicate_top_of_stack()
-            # Stack: cstr pointer (as int), String, String
-            .duplicate_top_2_behind_top_3_of_stack()
-            # Stack: String, String, cstr pointer (as int), String, String
-            .pop2()
-            # Stack: String, String, cstr pointer (as int)
-            .duplicate_top_of_stack()
-            # Stack: String, String, cstr pointer, cstr pointer
-            .cstrlen(nonce)
-            # Stack: String, String, cstr pointer, length
-            .get_static_field(self._context.memory_ref)
-            # Stack: String, String, cstr pointer, length, memory
-            .move_short_behind_top_2_of_stack()
-            # Stack: String, String, memory, cstr pointer, length
-            .get_static_field(
-                self._context.cf.constants.create_field_ref("java/nio/charset/StandardCharsets", "UTF_8",
-                                                            "Ljava/nio/charset/Charset;")
-            )
-            # Stack: String, String, memory, cstr pointer, length, charset
-            .invoke_special(self._context.cf.constants.create_method_ref("java/lang/String", "<init>",
-                                                                         "([BIILjava/nio/charset/Charset;)V"))
-            # Stack: string
-        )
-
     # </editor-fold>

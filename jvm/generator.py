@@ -18,7 +18,8 @@ from jvm.intrinsics.args import prepare_argv_method_instructions, prepare_envp_m
 from jvm.intrinsics.init import clinit_method_instructions
 from jvm.intrinsics.load import load_64_method_instructions, \
     load_32_method_instructions, load_16_method_instructions, load_8_method_instructions
-from jvm.intrinsics.memory import extend_mem_method_instructions, put_string_method_instructions
+from jvm.intrinsics.memory import extend_mem_method_instructions, put_string_method_instructions, \
+    cstring_to_string_method_instructions
 from jvm.intrinsics.procedures import Procedure
 from jvm.intrinsics.store import store_32, store_16, store_8, store_64_method_instructions
 from jvm.intrinsics.syscalls import syscall3_method_instructions, syscall1_method_instructions
@@ -152,6 +153,12 @@ def add_utility_methods(context: GenerateContext):
                                                                      store_64_method.name.value,
                                                                      store_64_method.descriptor.value)
     create_method_direct(store_64_method, store_64_method_instructions(context))
+
+    cstring_to_string_method = create_method_prototype(context.cf, "cstring_to_string", "(J)Ljava/lang/String;")
+    context.cstring_to_string_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
+                                                                             cstring_to_string_method.name.value,
+                                                                             cstring_to_string_method.descriptor.value)
+    create_method_direct(cstring_to_string_method, cstring_to_string_method_instructions(context))
 
     prepare_argv_method = create_method_prototype(context.cf, "prepare_argv", "([Ljava/lang/String;)V")
     context.prepare_argv_method = context.cf.constants.create_method_ref(context.cf.this.name.value,

@@ -29,6 +29,7 @@ class GenerateContext:
     load_16_method: MethodReference
     load_8_method: MethodReference
     put_string_method: MethodReference
+    cstring_to_string_method: MethodReference
 
     memory_ref: FieldReference
     argc_ref: FieldReference
