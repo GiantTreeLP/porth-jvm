@@ -306,11 +306,12 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
             instructions.invoke_static(proc.method_ref)
 
             if len(proc.contract.outs) > 1:
-                instructions.store_reference(local_variable_index + 1)
                 for i in range(len(proc.contract.outs) - 1, -1, -1):
-                    instructions.load_reference(local_variable_index + 1)
+                    instructions.duplicate_top_of_stack()
                     instructions.push_integer(i)
                     instructions.load_array_long()
+                    instructions.move_long_behind_short()
+                instructions.drop()
 
         elif op.typ == OpType.RET:
             assert isinstance(op.operand, int)
@@ -329,14 +330,27 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
             elif op.operand == Intrinsic.MAX:
                 instructions.invoke_static(context.cf.constants.create_method_ref("java/lang/Math", "max", "(JJ)J"))
             elif op.operand == Intrinsic.DIVMOD:
-                instructions.store_long(local_variable_index + 2)
-                instructions.store_long(local_variable_index + 4)
-                instructions.load_long(local_variable_index + 4)
-                instructions.load_long(local_variable_index + 2)
+                # Stack: dividend, divisor
+                instructions.duplicate_long_behind_long()
+                # Stack: divisor, dividend, divisor
+                instructions.swap_longs()
+                # Stack: divisor, divisor, dividend
+                instructions.duplicate_long_behind_long()
+                # Stack: divisor, dividend, divisor, dividend
+                instructions.swap_longs()
+                # Stack: divisor, dividend, dividend, divisor
                 instructions.divide_long()
-                instructions.load_long(local_variable_index + 4)
-                instructions.load_long(local_variable_index + 2)
+                # Stack: divisor, dividend, dividend / divisor
+                instructions.store_long(local_variable_index + 2)
+                # Stack: divisor, dividend
+                instructions.swap_longs()
+                # Stack: dividend, divisor
                 instructions.remainder_long()
+                # Stack: dividend % divisor
+                instructions.load_long(local_variable_index + 2)
+                # Stack: dividend % divisor, dividend / divisor
+                instructions.swap_longs()
+                # Stack: dividend / divisor, dividend % divisor
             elif op.operand == Intrinsic.SHR:
                 instructions.convert_long_to_integer()
                 instructions.shift_right_long()
@@ -447,13 +461,20 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
                 string_constant = context.cf.constants.create_string(value)
 
                 instructions.push_constant(string_constant)
+                # Stack: string
+                instructions.duplicate_top_of_stack()
+                # Stack: string, string
                 instructions.string_get_bytes()
+                # Stack: string, bytes
                 instructions.array_length()
+                # Stack: string, length
                 instructions.convert_integer_to_long()
-                # Stack: string length (as long)
+                # Stack: string, length (as long)
+                instructions.move_long_behind_short()
+                # Stack: length (as long), string
 
-                instructions.push_constant(string_constant)
                 instructions.invoke_static(context.put_string_method)
+                # Stack: length (as long), pointer to string
             elif op.operand in [Intrinsic.CAST_PTR, Intrinsic.CAST_INT, Intrinsic.CAST_BOOL]:
                 pass
             elif op.operand == Intrinsic.SYSCALL0:
@@ -521,15 +542,13 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
         else:
             instructions.push_integer(len(procedure.contract.outs))
             instructions.new_array(OperandType.Long.array_type)
-            instructions.store_reference(local_variable_index + 1)
 
             for i in range(len(procedure.contract.outs)):
-                instructions.load_reference(local_variable_index + 1)
+                instructions.duplicate_short_behind_long()
                 instructions.push_integer(i)
                 instructions.move_top_2_behind_long()
                 instructions.store_array_long()
 
-            instructions.load_reference(local_variable_index + 1)
             instructions.return_reference()
 
     else:
