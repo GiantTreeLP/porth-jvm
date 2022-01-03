@@ -22,8 +22,9 @@ from jvm.intrinsics.memory import extend_mem_method_instructions, put_string_met
     cstring_to_string_method_instructions
 from jvm.intrinsics.procedures import Procedure
 from jvm.intrinsics.store import store_32, store_16, store_8, store_64_method_instructions
-from jvm.intrinsics.syscalls import syscall3_method_instructions, syscall1_method_instructions, \
-    syscall2_method_instructions
+from jvm.syscalls.syscall3 import syscall3_method_instructions
+from jvm.syscalls.syscall2 import syscall2_method_instructions
+from jvm.syscalls.syscall1 import syscall1_method_instructions
 from porth.porth import Program, OpType, MemAddr, OpAddr, Intrinsic, Op, Token, TokenType, ParseContext, Proc
 
 
