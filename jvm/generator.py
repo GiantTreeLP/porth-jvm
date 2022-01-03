@@ -107,89 +107,35 @@ def add_field(context: GenerateContext, name: str, descriptor: str):
 
 
 def add_utility_methods(context: GenerateContext):
-    print_long_method = create_method_prototype(context.cf, "print_long", "(J)V")
-    context.print_long_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
-                                                                       print_long_method.name.value,
-                                                                       print_long_method.descriptor.value)
-    create_method_direct(print_long_method, print_long_method_instructions(context))
+    context.print_long_method = add_utility_method(context, "print_long", "(J)V",
+                                                   print_long_method_instructions(context))
+    context.load_64_method = add_utility_method(context, "load_64", "(J)J", load_64_method_instructions(context))
+    context.load_32_method = add_utility_method(context, "load_32", "(J)J", load_32_method_instructions(context))
+    context.load_16_method = add_utility_method(context, "load_16", "(J)J", load_16_method_instructions(context))
+    context.load_8_method = add_utility_method(context, "load_8", "(J)J", load_8_method_instructions(context))
+    context.extend_mem_method = add_utility_method(context, "extend_mem", "(I)J",
+                                                   extend_mem_method_instructions(context))
+    context.put_string_method = add_utility_method(context, "put_string", "(Ljava/lang/String;)J",
+                                                   put_string_method_instructions(context))
+    context.store_64_method = add_utility_method(context, "store_64", "(JJ)V", store_64_method_instructions(context))
+    context.cstring_to_string_method = add_utility_method(context, "cstring_to_string", "(J)Ljava/lang/String;",
+                                                          cstring_to_string_method_instructions(context))
 
-    load_64_method = create_method_prototype(context.cf, "load_64", "(J)J")
-    context.load_64_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
-                                                                    load_64_method.name.value,
-                                                                    load_64_method.descriptor.value)
-    create_method_direct(load_64_method, load_64_method_instructions(context))
+    context.prepare_argv_method = add_utility_method(context, "prepare_argv", "([Ljava/lang/String;)V",
+                                                     prepare_argv_method_instructions(context))
+    context.prepare_envp_method = add_utility_method(context, "prepare_envp", "()V",
+                                                     prepare_envp_method_instructions(context))
 
-    load_32_method = create_method_prototype(context.cf, "load_32", "(J)J")
-    context.load_32_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
-                                                                    load_32_method.name.value,
-                                                                    load_32_method.descriptor.value)
-    create_method_direct(load_32_method, load_32_method_instructions(context))
+    context.syscall1_method = add_utility_method(context, "syscall1", "(JJ)J", syscall1_method_instructions(context))
+    context.syscall2_method = add_utility_method(context, "syscall2", "(JJJ)J", syscall2_method_instructions(context))
+    context.syscall3_method = add_utility_method(context, "syscall3", "(JJJJ)J", syscall3_method_instructions(context))
 
-    load_16_method = create_method_prototype(context.cf, "load_16", "(J)J")
-    context.load_16_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
-                                                                    load_16_method.name.value,
-                                                                    load_16_method.descriptor.value)
-    create_method_direct(load_16_method, load_16_method_instructions(context))
 
-    load_8_method = create_method_prototype(context.cf, "load_8", "(J)J")
-    context.load_8_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
-                                                                   load_8_method.name.value,
-                                                                   load_8_method.descriptor.value)
-    create_method_direct(load_8_method, load_8_method_instructions(context))
-
-    extend_mem_method = create_method_prototype(context.cf, "extend_mem", "(I)J")
-    context.extend_mem_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
-                                                                       extend_mem_method.name.value,
-                                                                       extend_mem_method.descriptor.value)
-    create_method_direct(extend_mem_method, extend_mem_method_instructions(context))
-
-    put_string_method = create_method_prototype(context.cf, "put_string", "(Ljava/lang/String;)J")
-    context.put_string_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
-                                                                       put_string_method.name.value,
-                                                                       put_string_method.descriptor.value)
-    create_method_direct(put_string_method, put_string_method_instructions(context))
-
-    store_64_method = create_method_prototype(context.cf, "store_64", "(JJ)V")
-    context.store_64_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
-                                                                     store_64_method.name.value,
-                                                                     store_64_method.descriptor.value)
-    create_method_direct(store_64_method, store_64_method_instructions(context))
-
-    cstring_to_string_method = create_method_prototype(context.cf, "cstring_to_string", "(J)Ljava/lang/String;")
-    context.cstring_to_string_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
-                                                                             cstring_to_string_method.name.value,
-                                                                             cstring_to_string_method.descriptor.value)
-    create_method_direct(cstring_to_string_method, cstring_to_string_method_instructions(context))
-
-    prepare_argv_method = create_method_prototype(context.cf, "prepare_argv", "([Ljava/lang/String;)V")
-    context.prepare_argv_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
-                                                                         prepare_argv_method.name.value,
-                                                                         prepare_argv_method.descriptor.value)
-    create_method_direct(prepare_argv_method, prepare_argv_method_instructions(context))
-
-    prepare_envp_method = create_method_prototype(context.cf, "prepare_envp", "()V")
-    context.prepare_envp_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
-                                                                         prepare_envp_method.name.value,
-                                                                         prepare_envp_method.descriptor.value)
-    create_method_direct(prepare_envp_method, prepare_envp_method_instructions(context))
-
-    syscall1_method = create_method_prototype(context.cf, "syscall1", "(JJ)J")
-    context.syscall1_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
-                                                                     syscall1_method.name.value,
-                                                                     syscall1_method.descriptor.value)
-    create_method_direct(syscall1_method, syscall1_method_instructions(context))
-
-    syscall2_method = create_method_prototype(context.cf, "syscall2", "(JJJ)J")
-    context.syscall2_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
-                                                                     syscall2_method.name.value,
-                                                                     syscall2_method.descriptor.value)
-    create_method_direct(syscall2_method, syscall2_method_instructions(context))
-
-    syscall3_method = create_method_prototype(context.cf, "syscall3", "(JJJJ)J")
-    context.syscall3_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
-                                                                     syscall3_method.name.value,
-                                                                     syscall3_method.descriptor.value)
-    create_method_direct(syscall3_method, syscall3_method_instructions(context))
+def add_utility_method(context: GenerateContext, name: str, descriptor: str, instructions: Instructions):
+    method = create_method_prototype(context.cf, name, descriptor)
+    create_method_direct(method, instructions)
+    return context.cf.constants.create_method_ref(context.cf.this.name.value, method.name.value,
+                                                  method.descriptor.value)
 
 
 def create_method_prototype(cf: ClassFile, name: str, descriptor: str):
