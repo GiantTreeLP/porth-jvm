@@ -78,7 +78,10 @@ def generate_jvm_bytecode(parse_context: ParseContext, program: Program, out_fil
         line_numbers.line_no = [
             line_number_entry(0, program.ops[procedure.addr].token.loc[1]),
         ]
-        create_method(context, method, procedure, program.ops[procedure.addr:])
+
+    for (name, procedure) in context.procedures.items():
+        proc = parse_context.procs[name]
+        create_method(context, cf.methods.find_one(name=name), proc, program.ops[proc.addr:])
 
     create_method(context, main_method, None, program.ops)
 
