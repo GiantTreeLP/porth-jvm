@@ -22,7 +22,8 @@ from jvm.intrinsics.memory import extend_mem_method_instructions, put_string_met
     cstring_to_string_method_instructions
 from jvm.intrinsics.procedures import Procedure
 from jvm.intrinsics.store import store_32, store_16, store_8, store_64_method_instructions
-from jvm.intrinsics.syscalls import syscall3_method_instructions, syscall1_method_instructions
+from jvm.intrinsics.syscalls import syscall3_method_instructions, syscall1_method_instructions, \
+    syscall2_method_instructions
 from porth.porth import Program, OpType, MemAddr, OpAddr, Intrinsic, Op, Token, TokenType, ParseContext, Proc
 
 
@@ -177,6 +178,12 @@ def add_utility_methods(context: GenerateContext):
                                                                      syscall1_method.name.value,
                                                                      syscall1_method.descriptor.value)
     create_method_direct(syscall1_method, syscall1_method_instructions(context))
+
+    syscall2_method = create_method_prototype(context.cf, "syscall2", "(JJJ)J")
+    context.syscall2_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
+                                                                     syscall2_method.name.value,
+                                                                     syscall2_method.descriptor.value)
+    create_method_direct(syscall2_method, syscall2_method_instructions(context))
 
     syscall3_method = create_method_prototype(context.cf, "syscall3", "(JJJJ)J")
     context.syscall3_method = context.cf.constants.create_method_ref(context.cf.this.name.value,
@@ -485,11 +492,7 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
             elif op.operand == Intrinsic.SYSCALL1:
                 instructions.invoke_static(context.syscall1_method)
             elif op.operand == Intrinsic.SYSCALL2:
-                instructions.drop_long()
-                instructions.drop_long()
-                instructions.drop_long()
-                instructions.push_long(0)
-                pass
+                instructions.invoke_static(context.syscall2_method)
             elif op.operand == Intrinsic.SYSCALL3:
                 instructions.invoke_static(context.syscall3_method)
             elif op.operand == Intrinsic.SYSCALL4:

@@ -21,6 +21,7 @@ class GenerateContext:
     prepare_argv_method: MethodReference
     prepare_envp_method: MethodReference
     syscall1_method: MethodReference
+    syscall2_method: MethodReference
     syscall3_method: MethodReference
     extend_mem_method: MethodReference
     store_64_method: MethodReference
