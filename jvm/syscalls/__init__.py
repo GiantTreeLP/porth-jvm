@@ -316,3 +316,24 @@ class SysCalls(IntEnum):
     PROCESS_VM_WRITEV = 311
     KCMP = 312
     FINIT_MODULE = 313
+
+
+class OpenModes(IntEnum):
+    O_RDONLY = 0
+    O_WRONLY = 1
+    O_RDWR = 2
+    O_CREAT = 64
+    O_EXCL = 128
+    O_NOCTTY = 256
+    O_TRUNC = 512
+    O_APPEND = 1024
+    O_NONBLOCK = 2048
+    O_SYNC = 131584
+    O_ASYNC = 8192
+
+
+class AtModes(IntEnum):
+    AT_FDCWD = -100
+    AT_SYMLINK_NOFOLLOW = 0x100
+    AT_REMOVEDIR = 0x200
+    AT_SYMLINK_FOLLOW = 0x400

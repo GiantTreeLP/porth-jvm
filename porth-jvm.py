@@ -6,7 +6,7 @@ from typing import Optional
 
 from jvm.generator import generate_jvm_bytecode
 from porth.porth import usage, Program, ParseContext, parse_program_from_file, type_check_program, \
-    PORTH_EXT, generate_control_flow_graph_as_dot_file, cmd_call_echoed
+    PORTH_EXT, cmd_call_echoed
 
 
 def main():
@@ -85,8 +85,8 @@ def main():
             print("[ERROR] no input file is provided for the compilation", file=sys.stderr)
             exit(1)
 
-        basename = None
-        basedir = None
+        basename: str
+        basedir: str
         if output_path is not None:
             if path.isdir(output_path):
                 basename = path.basename(program_path)
@@ -113,13 +113,6 @@ def main():
         parse_context = ParseContext()
         parse_program_from_file(parse_context, program_path, include_paths)
         program = Program(ops=parse_context.ops, memory_capacity=parse_context.memory_capacity)
-        proc_contracts = {proc.addr: proc.contract for proc in parse_context.procs.values()}
-        if control_flow:
-            dot_path = basepath + ".dot"
-            if not silent:
-                print(f"[INFO] Generating {dot_path}")
-            generate_control_flow_graph_as_dot_file(program, dot_path)
-            cmd_call_echoed(["dot", "-Tsvg", "-O", dot_path], silent)
         if not unsafe:
             type_check_program(program, {proc.addr: proc for proc in parse_context.procs.values()})
         if not silent:

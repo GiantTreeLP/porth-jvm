@@ -210,7 +210,7 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
             instructions.add_integer()
             instructions.convert_integer_to_long()
 
-        elif op.typ == OpType.PUSH_MEM:
+        elif op.typ == OpType.PUSH_GLOBAL_MEM:
             assert isinstance(op.operand, MemAddr), "This could be a bug in the parsing step"
             instructions.push_long(op.operand)
         elif op.typ == OpType.PUSH_LOCAL_MEM:
@@ -412,26 +412,6 @@ def create_method(context: GenerateContext, method: Method, procedure: Optional[
                 instructions.invoke_static(context.load_64_method)
             elif op.operand == Intrinsic.ENVP:
                 instructions.get_static_field(context.envp_ref)
-                pass
-            elif op.operand == Intrinsic.HERE:
-                value = ("%s:%d:%d" % op.token.loc)
-                string_constant = context.cf.constants.create_string(value)
-
-                instructions.push_constant(string_constant)
-                # Stack: string
-                instructions.duplicate_top_of_stack()
-                # Stack: string, string
-                instructions.string_get_bytes()
-                # Stack: string, bytes
-                instructions.array_length()
-                # Stack: string, length
-                instructions.convert_integer_to_long()
-                # Stack: string, length (as long)
-                instructions.move_long_behind_short()
-                # Stack: length (as long), string
-
-                instructions.invoke_static(context.put_string_method)
-                # Stack: length (as long), pointer to string
             elif op.operand in [Intrinsic.CAST_PTR, Intrinsic.CAST_INT, Intrinsic.CAST_BOOL]:
                 pass
             elif op.operand == Intrinsic.SYSCALL0:
