@@ -42,7 +42,7 @@ def main():
     subcommand, *argv = argv
 
     program_path: Optional[str] = None
-    program: Program = Program()
+    program: Program
 
     if subcommand == "check":
         if len(argv) < 1:
@@ -52,14 +52,13 @@ def main():
         program_path, *argv = argv
         include_paths.append(path.dirname(program_path))
         parse_context = ParseContext()
-        parse_program_from_file(parse_context, program_path, include_paths);
+        parse_program_from_file(parse_context, program_path, include_paths)
         program = Program(ops=parse_context.ops, memory_capacity=parse_context.memory_capacity)
         proc_contracts = {proc.addr: proc.contract for proc in parse_context.procs.values()}
         if not unsafe:
             type_check_program(program, proc_contracts)
     elif subcommand == "com":
         silent = False
-        control_flow = False
         run = False
         output_path = None
         while len(argv) > 0:
@@ -74,8 +73,6 @@ def main():
                     print("[ERROR] no argument is provided for parameter -o", file=sys.stderr)
                     exit(1)
                 output_path, *argv = argv
-            elif arg == '-cf':
-                control_flow = True
             else:
                 program_path = arg
                 break
